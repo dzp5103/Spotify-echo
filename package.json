@@ -100,7 +100,17 @@
     "agent:enable": "node -e \"const fs=require('fs'); const config=require('./agent-workflow/config/config.json'); config.enabled=true; fs.writeFileSync('./agent-workflow/config/config.json', JSON.stringify(config,null,2));\"",
     "agent:disable": "node -e \"const fs=require('fs'); const config=require('./agent-workflow/config/config.json'); config.enabled=false; fs.writeFileSync('./agent-workflow/config/config.json', JSON.stringify(config,null,2));\"",
     "validate:digitalocean": "./scripts/validate-digitalocean-deployment.sh",
-    "validate:deployment-config": "./scripts/validate-digitalocean-deployment.sh"
+    "validate:deployment-config": "./scripts/validate-digitalocean-deployment.sh",
+    "docker:setup": "./scripts/docker-ubuntu-setup.sh",
+    "docker:deploy": "./scripts/simple-deploy.sh",
+    "docker:manage": "./scripts/docker-manager.sh",
+    "docker:optimize": "./scripts/docker-manager.sh optimize",
+    "docker:monitor": "./scripts/docker-manager.sh monitor",
+    "docker:check": "./scripts/docker-manager.sh check",
+    "docker:report": "./scripts/docker-manager.sh report",
+    "deploy:simple": "./scripts/simple-deploy.sh deploy",
+    "deploy:docker": "./scripts/simple-deploy.sh deploy",
+    "deploy:ubuntu": "./scripts/docker-ubuntu-setup.sh && ./scripts/simple-deploy.sh"
   },
   "keywords": [
     "music",

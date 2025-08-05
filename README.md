@@ -50,12 +50,30 @@
 📖 **[Complete DigitalOcean Setup Guide](DEPLOYMENT.md)**
 
 ### 🐳 Docker Deployment
+
+**Ultra-Simple One-Command Deployment:**
+```bash
+# One-click deployment (includes Docker setup for Ubuntu 22.04)
+curl -sSL https://raw.githubusercontent.com/dzp5103/Spotify-echo/main/scripts/simple-deploy.sh | bash
+```
+
+**Manual Docker Deployment:**
 ```bash
 git clone https://github.com/dzp5103/Spotify-echo.git
 cd Spotify-echo
 docker-compose up -d
-# Open http://localhost:3000
+# Open http://localhost
 ```
+
+**Ubuntu 22.04 with Docker Setup:**
+```bash
+# Complete setup including Docker installation (following DigitalOcean tutorial)
+curl -sSL https://raw.githubusercontent.com/dzp5103/Spotify-echo/main/scripts/docker-ubuntu-setup.sh | bash
+```
+
+**🎬 [View Deployment Demo](scripts/deployment-demo.sh)** - See the entire process in action
+
+📖 **[Enhanced Docker Guide](DOCKER_ENHANCED_GUIDE.md)** - Comprehensive Docker deployment guide
 
 ### 💻 Local Development
 ```bash
@@ -63,6 +81,24 @@ git clone https://github.com/dzp5103/Spotify-echo.git
 cd Spotify-echo
 npm install && npm start
 # Open http://localhost:3000
+```
+
+### 🛠️ Management Commands
+
+After deployment, use these helpful commands:
+```bash
+# Service management
+echotune-start          # Start all services
+echotune-stop           # Stop all services  
+echotune-restart        # Restart all services
+echotune-logs           # View service logs
+echotune-health         # Check application health
+echotune-monitor        # Real-time monitoring
+
+# Docker management
+npm run docker:optimize # Optimize Docker resources
+npm run docker:monitor  # Advanced monitoring dashboard
+npm run docker:check    # System health check
 ```
 
 ## 🏗️ Architecture

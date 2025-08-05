@@ -1,0 +1,209 @@
+# Lightweight Production Dockerfile for EchoTune AI
+# Optimized for Ubuntu 22.04 and DigitalOcean deployment
+# Based on best practices from: https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04
+
+# Build stage - optimized for fast builds
+FROM node:20-alpine AS builder
+
+# Build arguments
+ARG BUILD_VERSION=latest
+ARG NODE_ENV=production
+ARG BUILDKIT_INLINE_CACHE=1
+
+# Set build environment
+ENV NODE_ENV=development \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_FUND=false \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Install build dependencies efficiently
+RUN apk add --no-cache --virtual .build-deps \
+    python3 \
+    make \
+    g++ \
+    git \
+    curl
+
+# Create app directory
+WORKDIR /app
+
+# Copy dependency files first for better caching
+COPY package*.json ./
+COPY requirements*.txt ./
+
+# Install dependencies with cache optimization
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --include=dev --no-audit --no-fund --prefer-offline
+
+# Copy source code
+COPY . .
+
+# Build application (if build script exists)
+RUN npm run build || echo "No build script found"
+
+# Production stage - minimal and secure
+FROM node:20-alpine AS production
+
+# Build arguments for versioning and metadata
+ARG BUILD_VERSION=latest
+ARG BUILD_DATE
+ARG VCS_REF
+ARG SERVICE_NAME=echotune-app
+ARG ENVIRONMENT=production
+
+# Production environment variables
+ENV NODE_ENV=production \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_FUND=false \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=true \
+    PORT=3000 \
+    BUILD_VERSION=${BUILD_VERSION} \
+    SERVICE_NAME=${SERVICE_NAME}
+
+# Add comprehensive OCI labels for better management
+LABEL org.opencontainers.image.title="EchoTune AI" \
+      org.opencontainers.image.description="AI-powered music recommendation system with Spotify integration" \
+      org.opencontainers.image.version=${BUILD_VERSION} \
+      org.opencontainers.image.created=${BUILD_DATE} \
+      org.opencontainers.image.revision=${VCS_REF} \
+      org.opencontainers.image.source="https://github.com/dzp5103/Spotify-echo" \
+      org.opencontainers.image.url="https://primosphere.studio" \
+      org.opencontainers.image.vendor="EchoTune AI Team" \
+      org.opencontainers.image.licenses="MIT" \
+      service.name=${SERVICE_NAME} \
+      deployment.environment=${ENVIRONMENT} \
+      dockerfile.optimized="true" \
+      docker.tutorial="ubuntu-22.04"
+
+# Install only essential runtime dependencies
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    tini \
+    python3 \
+    py3-pip \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user with proper permissions
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S echotune -u 1001 -G nodejs -h /app -s /bin/sh && \
+    mkdir -p /app /app/logs /app/data /app/temp /app/uploads /app/cache
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for production dependency installation
+COPY package*.json ./
+
+# Install only production dependencies with cache optimization
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production --no-audit --no-fund --prefer-offline && \
+    npm cache clean --force
+
+# Copy built application from builder stage
+COPY --from=builder --chown=echotune:nodejs /app/dist ./dist 2>/dev/null || echo "No dist directory"
+COPY --from=builder --chown=echotune:nodejs /app/src ./src
+COPY --from=builder --chown=echotune:nodejs /app/static ./static 2>/dev/null || echo "No static directory"
+COPY --from=builder --chown=echotune:nodejs /app/public ./public 2>/dev/null || echo "No public directory"
+
+# Copy essential configuration files
+COPY --chown=echotune:nodejs server.js index.js ./
+COPY --chown=echotune:nodejs *.json ./
+
+# Set proper permissions for all directories
+RUN chown -R echotune:nodejs /app && \
+    chmod 755 /app/logs /app/data /app/temp /app/uploads /app/cache 2>/dev/null || true
+
+# Create optimized health check script
+RUN cat > /app/health-check.sh << 'EOF' && chmod +x /app/health-check.sh
+#!/bin/sh
+set -e
+
+HEALTH_URL="http://localhost:${PORT:-3000}/health"
+MAX_ATTEMPTS=3
+TIMEOUT=10
+
+for i in $(seq 1 $MAX_ATTEMPTS); do
+    if curl -f -s --max-time $TIMEOUT "$HEALTH_URL" | grep -q "healthy\|ok\|running"; then
+        echo "Health check passed (attempt $i)"
+        exit 0
+    fi
+    
+    if [ $i -lt $MAX_ATTEMPTS ]; then
+        echo "Health check failed (attempt $i), retrying..."
+        sleep 2
+    fi
+done
+
+echo "Health check failed after $MAX_ATTEMPTS attempts"
+exit 1
+EOF
+
+# Create startup script for better signal handling
+RUN cat > /app/start.sh << 'EOF' && chmod +x /app/start.sh
+#!/bin/sh
+set -e
+
+echo "Starting EchoTune AI ${BUILD_VERSION} in ${NODE_ENV} mode..."
+
+# Check for required environment variables
+if [ -z "$SPOTIFY_CLIENT_ID" ] || [ -z "$SPOTIFY_CLIENT_SECRET" ]; then
+    echo "Warning: Spotify API credentials not configured"
+    echo "Please set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables"
+fi
+
+# Create directories if they don't exist
+mkdir -p logs data temp uploads cache
+
+# Start the application
+exec "$@"
+EOF
+
+# Switch to non-root user for security
+USER echotune
+
+# Expose application port
+EXPOSE 3000
+
+# Health check with optimized settings
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD /app/health-check.sh
+
+# Use tini for proper signal handling and zombie process reaping
+ENTRYPOINT ["/sbin/tini", "--", "/app/start.sh"]
+
+# Default command - can be overridden
+CMD ["node", "server.js"]
+
+# Development stage (for docker-compose override)
+FROM node:20-alpine AS development
+
+ENV NODE_ENV=development
+
+# Install development dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git \
+    curl
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci --include=dev
+
+# Copy source code
+COPY . .
+
+# Expose port and volume for development
+EXPOSE 3000
+VOLUME ["/app"]
+
+# Development command
+CMD ["npm", "run", "dev"]
