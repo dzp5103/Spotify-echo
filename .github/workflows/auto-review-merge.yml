@@ -140,7 +140,7 @@ jobs:
           fi
 
           # Convert from draft to ready for review if needed
-          is_draft=$(gh pr view $PR_NUMBER --json draft --jq '.draft')
+          is_draft=$(gh pr view $PR_NUMBER --json isDraft --jq '.isDraft')
           if [ "$is_draft" = "true" ]; then
             echo "📝 Converting PR from draft to ready for review..."
             gh pr ready $PR_NUMBER || {
@@ -177,7 +177,7 @@ jobs:
           echo "Processing PR #$PR_NUMBER"
 
           # Get PR details with error handling
-          if ! pr_info=$(gh pr view $PR_NUMBER --json title,body,author,draft,mergeable,state); then
+          if ! pr_info=$(gh pr view $PR_NUMBER --json title,body,author,isDraft,mergeable,state); then
             echo "❌ Failed to get PR information"
             exit 1
           fi
@@ -191,7 +191,7 @@ jobs:
           echo "🔍 Validating PR #$PR_NUMBER requirements..."
 
           # Check if PR is ready (not draft) - should be handled by setup step but double-check
-          is_draft=$(gh pr view $PR_NUMBER --json draft --jq '.draft')
+          is_draft=$(gh pr view $PR_NUMBER --json isDraft --jq '.isDraft')
           if [ "$is_draft" == "true" ]; then
             echo "⚠️ PR is still in draft state, converting to ready for review..."
             gh pr ready $PR_NUMBER || echo "Note: PR may already be ready"
