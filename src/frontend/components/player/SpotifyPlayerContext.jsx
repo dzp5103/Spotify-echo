@@ -31,7 +31,7 @@ export const SpotifyPlayerProvider = ({ children }) => {
       setAccessToken(storedToken);
       initializePlayer(storedToken);
     }
-  }, []);
+  }, [initializePlayer]); // Add initializePlayer dependency
 
   /**
    * Initialize Spotify Web Player SDK

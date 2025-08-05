@@ -27,7 +27,7 @@
     "format:check": "prettier --check src/",
     "health-check": "curl -f http://localhost:3000/health || exit 1",
     "deploy": "./scripts/deploy.sh",
-    "deploy:simple": "./scripts/deploy-simple.sh",
+    "deploy:simple": "./scripts/simple-deploy.sh deploy",
     "deploy:digitalocean": "./scripts/deploy-digitalocean.sh",
     "deploy:doctl": "./deploy-doctl.sh",
     "deploy:doctl-demo": "./deploy-doctl.sh --dry-run",
@@ -48,7 +48,6 @@
     "integrate-mcp": "./scripts/integrate-mcp.sh",
     "complete-integrations": "./scripts/complete-integrations.sh",
     "mcp-integrate": "node scripts/integrate-mcp-servers.js",
-    "mcp-test-mermaid": "npx mcp-mermaid --help",
     "mcp-test-filesystem": "node node_modules/FileScopeMCP/dist/index.js --help",
     "mcp-test-browserbase": "node scripts/browserbase-test.js",
     "mcp-generate-diagrams": "node scripts/integrate-mcp-servers.js --diagrams-only",
@@ -108,7 +107,6 @@
     "docker:monitor": "./scripts/docker-manager.sh monitor",
     "docker:check": "./scripts/docker-manager.sh check",
     "docker:report": "./scripts/docker-manager.sh report",
-    "deploy:simple": "./scripts/simple-deploy.sh deploy",
     "deploy:docker": "./scripts/simple-deploy.sh deploy",
     "deploy:ubuntu": "./scripts/docker-ubuntu-setup.sh && ./scripts/simple-deploy.sh"
   },
@@ -158,7 +156,6 @@
     "FileScopeMCP": "github:admica/FileScopeMCP",
     "helmet": "^7.1.0",
     "lodash": "^4.17.21",
-    "mcp-mermaid": "^0.1.3",
     "mongodb": "^6.3.0",
     "multer": "^2.0.0",
     "node-cache": "^5.1.2",
@@ -227,12 +224,6 @@
           "BROWSERBASE_API_KEY": "${BROWSERBASE_API_KEY}",
           "BROWSERBASE_PROJECT_ID": "${BROWSERBASE_PROJECT_ID}"
         }
-      },
-      "mermaid": {
-        "command": "npx",
-        "args": [
-          "mcp-mermaid"
-        ]
       },
       "filesystem": {
         "command": "node",

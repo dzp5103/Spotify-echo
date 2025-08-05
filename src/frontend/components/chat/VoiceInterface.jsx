@@ -33,7 +33,7 @@ const VoiceInterface = ({ onVoiceInput, onClose }) => {
     return () => {
       cleanup();
     };
-  }, []);
+  }, [cleanup, initializeSpeechRecognition]); // Add dependencies
 
   /**
    * Initialize Speech Recognition API

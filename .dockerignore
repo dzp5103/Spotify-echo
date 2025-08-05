@@ -157,8 +157,7 @@ backups
 .travis.yml
 .circleci
 
-# Package manager files (we copy package.json separately)
-package-lock.json
+# Package manager files that we need in Docker
 yarn.lock
 pnpm-lock.yaml
 

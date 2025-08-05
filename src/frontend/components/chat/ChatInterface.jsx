@@ -57,7 +57,7 @@ const ChatInterface = () => {
 
     // Initialize Text-to-Speech
     initializeTTS();
-  }, []);
+  }, [currentProvider]); // Add currentProvider dependency
 
   useEffect(() => {
     if (!socket) return;
@@ -80,7 +80,7 @@ const ChatInterface = () => {
       socket.off('typing_start');
       socket.off('typing_stop');
     };
-  }, [socket]);
+  }, [socket, handleChatResponse, handleStreamComplete]); // Add dependencies
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive

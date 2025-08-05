@@ -24,7 +24,7 @@ export function LLMProvider({ children }) {
 
   useEffect(() => {
     refreshProviders();
-  }, []);
+  }, [refreshProviders]); // Add refreshProviders dependency
 
   const refreshProviders = async () => {
     setLoading(true);

@@ -7,7 +7,9 @@ FROM node:20-alpine AS builder
 # Set build environment
 ENV NODE_ENV=development \
     NPM_CONFIG_AUDIT=false \
-    NPM_CONFIG_FUND=false
+    NPM_CONFIG_FUND=false \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -25,7 +27,7 @@ COPY package*.json ./
 COPY requirements*.txt ./
 
 # Install dependencies
-RUN npm ci --include=dev --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
@@ -83,17 +85,16 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY --chown=echotune:nodejs package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production --no-audit --no-fund && \
-    npm cache clean --force
+# Copy node_modules from builder stage (more efficient than reinstalling)
+COPY --from=builder --chown=echotune:nodejs /app/node_modules ./node_modules
 
-# Copy built application from builder stage
-COPY --from=builder --chown=echotune:nodejs /app/dist ./dist
+# Copy built application from builder stage (only if they exist)
 COPY --from=builder --chown=echotune:nodejs /app/src ./src
-COPY --from=builder --chown=echotune:nodejs /app/static ./static
 COPY --from=builder --chown=echotune:nodejs /app/public ./public
+# Create directories for optional folders
+RUN mkdir -p dist static
 
 # Copy configuration files
 COPY --chown=echotune:nodejs *.js ./
