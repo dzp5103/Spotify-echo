@@ -1,7 +1,34 @@
-# Optimized Nginx container for EchoTune AI - Production Ready
+# Multi-stage Nginx container for EchoTune AI - DigitalOcean optimized
 FROM nginx:1.24-alpine
 
-# Install comprehensive SSL and security tools
+# Build arguments for versioning
+ARG BUILD_VERSION=latest
+ARG BUILD_DATE
+ARG VCS_REF
+ARG SERVICE_NAME=echotune-nginx
+ARG ENVIRONMENT=production
+
+# Environment variables
+ENV BACKEND_HOST=app \
+    BACKEND_PORT=3000 \
+    MCP_HOST=mcp-server \
+    MCP_PORT=3001 \
+    NGINX_WORKER_PROCESSES=auto \
+    NGINX_WORKER_CONNECTIONS=1024
+
+# Add OCI labels for metadata
+LABEL org.opencontainers.image.title="EchoTune AI Nginx" \
+      org.opencontainers.image.description="High-performance web server and reverse proxy for EchoTune AI" \
+      org.opencontainers.image.version=${BUILD_VERSION} \
+      org.opencontainers.image.created=${BUILD_DATE} \
+      org.opencontainers.image.revision=${VCS_REF} \
+      org.opencontainers.image.source="https://github.com/dzp5103/Spotify-echo" \
+      org.opencontainers.image.url="https://primosphere.studio" \
+      org.opencontainers.image.vendor="EchoTune AI Team" \
+      service.name=${SERVICE_NAME} \
+      deployment.environment=${ENVIRONMENT}
+
+# Install comprehensive tools
 RUN apk add --no-cache \
     certbot \
     certbot-nginx \
@@ -12,6 +39,7 @@ RUN apk add --no-cache \
     tzdata \
     netcat-openbsd \
     logrotate \
+    dumb-init \
     && rm -rf /var/cache/apk/*
 
 # Create comprehensive directory structure

@@ -1,0 +1,97 @@
+# Example workflow demonstrating reusable DigitalOcean deployment templates
+# This shows how other services can leverage the reusable workflows
+
+name: Example Service Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Service to deploy'
+        required: true
+        default: 'example-service'
+        type: choice
+        options:
+          - example-service
+          - analytics-service
+          - notification-service
+
+jobs:
+  # Example: Build and push a Docker image using the reusable template
+  build-service:
+    name: Build Service Image
+    uses: ./.github/workflows/reusable-docker-build.yml
+    with:
+      service_name: ${{ github.event.inputs.service_name }}
+      dockerfile_path: ./services/${{ github.event.inputs.service_name }}/Dockerfile
+      build_context: ./services/${{ github.event.inputs.service_name }}
+      registry_namespace: echotune-registry
+      platforms: linux/amd64,linux/arm64
+      build_args: |
+        {
+          "SERVICE_VERSION": "1.0.0",
+          "CUSTOM_ARG": "value"
+        }
+      enable_cache: true
+      run_security_scan: true
+    secrets:
+      DO_REGISTRY_TOKEN: ${{ secrets.DO_REGISTRY_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Example: Deploy to DigitalOcean App Platform using the reusable template
+  deploy-service:
+    name: Deploy to DigitalOcean
+    needs: build-service
+    uses: ./.github/workflows/reusable-do-deploy.yml
+    with:
+      app_name: ${{ github.event.inputs.service_name }}
+      environment: production
+      app_spec_path: ./services/${{ github.event.inputs.service_name }}/app.yaml
+      registry_namespace: echotune-registry
+      health_check_path: /health
+      deployment_timeout: 1800
+      enable_rollback: true
+      wait_for_deployment: true
+    secrets:
+      DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      DO_APP_ID: ${{ secrets.DIGITALOCEAN_APP_ID }}
+      NOTIFICATION_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Post-deployment validation
+  validate-deployment:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-service
+    if: ${{ needs.deploy-service.outputs.deployment_status == 'success' }}
+    
+    steps:
+      - name: Test service endpoint
+        run: |
+          APP_URL="${{ needs.deploy-service.outputs.app_url }}"
+          
+          if [[ -n "$APP_URL" ]]; then
+            echo "🔍 Testing service endpoint: $APP_URL"
+            
+            # Wait for service to be ready
+            sleep 30
+            
+            # Test health endpoint
+            if curl -f -s "$APP_URL/health" | grep -q "healthy"; then
+              echo "✅ Service health check passed"
+            else
+              echo "❌ Service health check failed"
+              exit 1
+            fi
+            
+            # Test API endpoint (if applicable)
+            if curl -f -s "$APP_URL/api/status" > /dev/null; then
+              echo "✅ API endpoint accessible"
+            else
+              echo "⚠️ API endpoint not accessible (may be expected)"
+            fi
+            
+            echo "🎉 Deployment validation completed successfully!"
+          else
+            echo "❌ No app URL available for validation"
+            exit 1
+          fi

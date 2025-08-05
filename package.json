@@ -98,7 +98,9 @@
     "agent:status": "node scripts/continuous-agent.js status",
     "agent:config": "cat agent-workflow/config/config.json",
     "agent:enable": "node -e \"const fs=require('fs'); const config=require('./agent-workflow/config/config.json'); config.enabled=true; fs.writeFileSync('./agent-workflow/config/config.json', JSON.stringify(config,null,2));\"",
-    "agent:disable": "node -e \"const fs=require('fs'); const config=require('./agent-workflow/config/config.json'); config.enabled=false; fs.writeFileSync('./agent-workflow/config/config.json', JSON.stringify(config,null,2));\""
+    "agent:disable": "node -e \"const fs=require('fs'); const config=require('./agent-workflow/config/config.json'); config.enabled=false; fs.writeFileSync('./agent-workflow/config/config.json', JSON.stringify(config,null,2));\"",
+    "validate:digitalocean": "./scripts/validate-digitalocean-deployment.sh",
+    "validate:deployment-config": "./scripts/validate-digitalocean-deployment.sh"
   },
   "keywords": [
     "music",
