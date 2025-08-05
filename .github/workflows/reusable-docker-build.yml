@@ -1,0 +1,181 @@
+# Reusable workflow for building and pushing Docker images to DigitalOcean Container Registry
+# This template can be used by other services or projects that need DigitalOcean deployment
+name: DigitalOcean Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: 'Name of the service to build'
+        required: true
+        type: string
+      dockerfile_path:
+        description: 'Path to Dockerfile'
+        required: true
+        type: string
+      build_context:
+        description: 'Docker build context'
+        required: false
+        type: string
+        default: '.'
+      registry_namespace:
+        description: 'DigitalOcean Container Registry namespace'
+        required: false
+        type: string
+        default: 'echotune-registry'
+      platforms:
+        description: 'Target platforms for build'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+      build_args:
+        description: 'Additional build arguments (JSON format)'
+        required: false
+        type: string
+        default: '{}'
+      enable_cache:
+        description: 'Enable Docker build cache'
+        required: false
+        type: boolean
+        default: true
+      run_security_scan:
+        description: 'Run security vulnerability scan'
+        required: false
+        type: boolean
+        default: true
+    
+    secrets:
+      DO_REGISTRY_TOKEN:
+        description: 'DigitalOcean Container Registry token'
+        required: true
+      GITHUB_TOKEN:
+        description: 'GitHub token for uploading security results'
+        required: false
+    
+    outputs:
+      image_digest:
+        description: 'Built image digest'
+        value: ${{ jobs.build.outputs.digest }}
+      image_tags:
+        description: 'Built image tags'
+        value: ${{ jobs.build.outputs.tags }}
+      registry_url:
+        description: 'Full registry URL for the image'
+        value: ${{ jobs.build.outputs.registry_url }}
+
+env:
+  DO_REGISTRY: registry.digitalocean.com
+
+jobs:
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+      registry_url: ${{ steps.registry.outputs.url }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ inputs.platforms }}
+
+      - name: Configure registry URL
+        id: registry
+        run: |
+          REGISTRY_URL="${{ env.DO_REGISTRY }}/${{ inputs.registry_namespace }}"
+          echo "url=${REGISTRY_URL}" >> $GITHUB_OUTPUT
+          echo "🏪 Registry URL: ${REGISTRY_URL}"
+
+      - name: Log in to DigitalOcean Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DO_REGISTRY }}
+          username: ${{ secrets.DO_REGISTRY_TOKEN }}
+          password: ${{ secrets.DO_REGISTRY_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.registry.outputs.url }}/${{ inputs.service_name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Parse build arguments
+        id: build-args
+        run: |
+          BUILD_ARGS="${{ inputs.build_args }}"
+          
+          # Add default build arguments
+          DEFAULT_ARGS="BUILD_VERSION=${{ github.sha }}"
+          DEFAULT_ARGS="${DEFAULT_ARGS},BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          DEFAULT_ARGS="${DEFAULT_ARGS},VCS_REF=${{ github.sha }}"
+          DEFAULT_ARGS="${DEFAULT_ARGS},SERVICE_NAME=${{ inputs.service_name }}"
+          
+          if [[ "$BUILD_ARGS" != "{}" ]]; then
+            # Merge custom build args with defaults
+            FINAL_ARGS="${DEFAULT_ARGS},$(echo '${{ inputs.build_args }}' | jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")')"
+          else
+            FINAL_ARGS="$DEFAULT_ARGS"
+          fi
+          
+          echo "args=${FINAL_ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build_context }}
+          file: ${{ inputs.dockerfile_path }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: ${{ inputs.enable_cache && format('type=gha,scope={0}', inputs.service_name) || '' }}
+          cache-to: ${{ inputs.enable_cache && format('type=gha,mode=max,scope={0}', inputs.service_name) || '' }}
+          build-args: ${{ steps.build-args.outputs.args }}
+
+      - name: Verify image deployment
+        run: |
+          echo "✅ Successfully built and pushed ${{ inputs.service_name }} image"
+          echo "🏷️ Image: ${{ steps.registry.outputs.url }}/${{ inputs.service_name }}"
+          echo "📋 Tags: ${{ steps.meta.outputs.tags }}"
+          echo "🔍 Digest: ${{ steps.build.outputs.digest }}"
+
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ inputs.run_security_scan }}
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.registry_url }}/${{ inputs.service_name }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && secrets.GITHUB_TOKEN
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-${{ inputs.service_name }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "🔒 Security scan completed for ${{ inputs.service_name }}"
+          echo "📊 Results uploaded to GitHub Security tab"

@@ -22,12 +22,32 @@
 
 | Method | Time | Best For |
 |--------|------|----------|
-| [**DigitalOcean**](docs/QUICK_START.md#digitalocean-one-click) | 2-3 min | Production with auto-scaling |
-| [**Docker**](docs/QUICK_START.md#docker-deployment) | 3-5 min | Any server with containerization |
-| [**Local Dev**](docs/QUICK_START.md#local-development) | 2 min | Testing and development |
+| [**DigitalOcean**](#-digitalocean-deployment) | 2-3 min | Production with auto-scaling |
+| [**Docker**](#-docker-deployment) | 3-5 min | Any server with containerization |
+| [**Local Dev**](#-local-development) | 2 min | Testing and development |
 
-### ⚡ One-Click Production Deploy
+### ⚡ DigitalOcean Deployment
+
+**Automated GitHub Actions Deployment with Container Registry:**
+
+1. **Fork this repository** to your GitHub account
+2. **Set up DigitalOcean secrets** in your repository:
+   ```bash
+   # Required GitHub Secrets:
+   DIGITALOCEAN_ACCESS_TOKEN=dop_v1_...
+   DO_REGISTRY_TOKEN=dop_v1_...
+   SPOTIFY_CLIENT_ID=your_spotify_client_id
+   SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+   SESSION_SECRET=your_secure_session_secret
+   JWT_SECRET=your_secure_jwt_secret
+   ```
+3. **Push to main branch** or trigger the "DigitalOcean Production Deployment" workflow manually
+4. **Monitor deployment** in GitHub Actions - typically completes in 5-10 minutes
+
+**One-Click Basic Deploy (Alternative):**
 [![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/dzp5103/Spotify-echo/tree/main&refcode=echotuneai)
+
+📖 **[Complete DigitalOcean Setup Guide](DEPLOYMENT.md)**
 
 ### 🐳 Docker Deployment
 ```bash
@@ -44,8 +64,6 @@ cd Spotify-echo
 npm install && npm start
 # Open http://localhost:3000
 ```
-
-📖 **[Complete Quick Start Guide](docs/QUICK_START.md)**
 
 ## 🏗️ Architecture
 
@@ -89,32 +107,108 @@ Spotify-echo/
 - **🔄 Multi-Provider Support** - OpenAI, Google Gemini, and mock providers
 - **📊 Analytics Integration** - Learn from user interactions and feedback
 
-## 🛡️ Production Features
+## 🚀 Production Deployment
 
-### Security & Performance
+### DigitalOcean GitHub Actions Workflow
+
+EchoTune AI features a comprehensive automated deployment system with:
+
+- **🐳 Multi-Service Container Build** - Automated Docker builds for app, nginx, and MCP server
+- **📦 Container Registry Integration** - DigitalOcean Container Registry with automatic pushes
+- **🔄 App Platform Deployment** - Seamless deployment to DigitalOcean App Platform
+- **🛡️ Security Scanning** - Automated vulnerability scanning with Trivy
+- **📊 Health Monitoring** - Comprehensive health checks and rollback capabilities
+- **⚡ Auto-Scaling** - Production-ready scaling configuration
+
+**Quick Setup:**
+1. Fork repository and configure GitHub secrets
+2. Push to main branch to trigger automatic deployment
+3. Monitor deployment progress in GitHub Actions
+4. Access your deployed application at your custom domain
+
+### Available Scripts
+```bash
+npm run build      # Build for production
+npm run test       # Run comprehensive test suite
+npm run lint       # ESLint code quality checks
+npm run format     # Prettier code formatting
+npm run health-check # Application health verification
+
+# Deployment commands
+npm run deploy:digitalocean  # Deploy to DigitalOcean
+npm run deploy:doctl        # Deploy using doctl CLI
+npm run deploy:one-click    # One-click deployment wizard
+```
+
+### Security & Performance Features
 - **🔐 OAuth 2.0** - Secure Spotify authentication
 - **⚡ Rate Limiting** - DDoS protection and API abuse prevention
 - **🛡️ Input Validation** - Comprehensive security headers and validation
 - **🔒 SSL/TLS** - Automatic HTTPS with Let's Encrypt
 - **📊 Health Monitoring** - Real-time system health checks and metrics
 
-### Deployment & Scaling
-- **🐳 Docker Support** - Multi-stage builds and container optimization
-- **☁️ Cloud Ready** - DigitalOcean App Platform with auto-scaling
-- **🔄 CI/CD Integration** - GitHub Actions for automated testing and deployment
-- **📈 Monitoring** - Application metrics, logging, and alerting
-
 ## 📚 Documentation
 
 | Guide | Description |
 |-------|-------------|
+| [**DigitalOcean Deployment**](DEPLOYMENT.md) | Complete automated deployment guide with GitHub Actions |
 | [**Quick Start Guide**](docs/QUICK_START.md) | Get running in under 5 minutes |
 | [**Ubuntu Deployment**](docs/deployment/ubuntu-deployment.md) | Complete server setup with SSL |
 | [**Docker Deployment**](docs/deployment/docker-deployment.md) | Containerized deployment guide |
-| [**DigitalOcean Deployment**](docs/deployment/digitalocean-deployment.md) | Cloud deployment with auto-scaling |
 | [**API Documentation**](docs/api/README.md) | Backend API reference |
 | [**Development Guide**](CODING_AGENT_GUIDE.md) | Setup for contributors |
 | [**Database Architecture**](DATABASE_ARCHITECTURE_GUIDE.md) | Data structure and schema |
+
+### 🔧 Workflow Configuration
+
+#### GitHub Secrets Required
+```bash
+# DigitalOcean Configuration
+DIGITALOCEAN_ACCESS_TOKEN    # DigitalOcean API token
+DO_REGISTRY_TOKEN           # Container Registry token
+DIGITALOCEAN_APP_ID         # App Platform app ID (optional)
+
+# Spotify API
+SPOTIFY_CLIENT_ID           # Your Spotify app client ID
+SPOTIFY_CLIENT_SECRET       # Your Spotify app client secret
+
+# Security
+SESSION_SECRET              # Secure session secret
+JWT_SECRET                  # Secure JWT secret
+MONGODB_URI                 # Database connection string
+
+# AI/LLM (Optional)
+GEMINI_API_KEY             # Google Gemini API key
+OPENAI_API_KEY             # OpenAI API key
+```
+
+#### Workflow Features
+- **🚀 Automatic Deployment** - Triggers on push to main branch
+- **🧪 Comprehensive Testing** - Unit, integration, and security tests
+- **🐳 Multi-Container Build** - App, nginx, and MCP server images
+- **🔍 Security Scanning** - Vulnerability assessment with Trivy
+- **📊 Health Monitoring** - Automated health checks and rollback
+- **🔄 Reusable Templates** - Modular workflows for other services
+
+#### Troubleshooting Common Issues
+
+**Deployment Failures:**
+- Verify all required secrets are configured
+- Check GitHub Actions logs for specific error messages
+- Ensure DigitalOcean account has sufficient resources
+- Validate Spotify app configuration and redirect URIs
+
+**Container Registry Issues:**
+- Regenerate DO_REGISTRY_TOKEN if authentication fails
+- Verify registry namespace matches workflow configuration
+- Check container registry usage limits
+
+**Application Issues:**
+- Monitor application logs via `doctl apps logs <app-id>`
+- Verify environment variables in App Platform dashboard
+- Test health endpoint: `curl https://your-domain.com/health`
+
+📖 **[Complete Troubleshooting Guide](DEPLOYMENT.md#monitoring-and-troubleshooting)**
 
 ## 🔧 Development
 

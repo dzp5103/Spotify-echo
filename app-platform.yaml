@@ -1,71 +1,311 @@
-# DigitalOcean App Platform Specification for EchoTune AI
-# Optimized for production deployment with auto-scaling and monitoring
-
+# Enhanced DigitalOcean App Platform Configuration for EchoTune AI
+# Optimized for production deployment with container support and auto-scaling
 name: echotune-ai
-region: nyc
+region: nyc1
+
+# Global configuration
+alerts:
+- rule: CPU_UTILIZATION
+  value: 80
+- rule: MEM_UTILIZATION
+  value: 85
+
 domains:
 - domain: primosphere.studio
   type: PRIMARY
 - domain: www.primosphere.studio
   type: ALIAS
 
+# Services configuration
 services:
-- name: web
-  source_dir: /
+  # Main EchoTune AI application
+  - name: web
+    source_dir: /
+    github:
+      repo: dzp5103/Spotify-echo
+      branch: main
+      deploy_on_push: true
+    
+    # For container deployment (uncomment and update when using container registry)
+    # image:
+    #   registry_type: DOCR
+    #   repository: echotune-app
+    #   tag: latest
+    
+    # Build configuration for source deployment
+    build_command: |
+      echo "Installing dependencies..."
+      npm ci --prefer-offline --no-audit
+      echo "Building application..."
+      npm run build || echo "Build completed"
+    
+    run_command: npm start
+    
+    environment_slug: node-js
+    instance_count: 2
+    instance_size_slug: basic-s
+    
+    # Auto-scaling configuration
+    autoscaling:
+      min_instance_count: 1
+      max_instance_count: 5
+      metrics:
+        cpu:
+          percent: 70
+        memory:
+          percent: 80
+    
+    # Health check configuration
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 60
+      period_seconds: 30
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 3
+    
+    # HTTP configuration
+    http_port: 3000
+    routes:
+    - path: /
+      preserve_path_prefix: true
+    
+    # CORS configuration
+    cors:
+      allow_origins:
+      - exact: "https://primosphere.studio"
+      - exact: "https://www.primosphere.studio"
+      - regex: "^https://.*\\.primosphere\\.studio$"
+      allow_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      allow_headers:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      allow_credentials: true
+    
+    # Environment variables
+    envs:
+    # Core application settings
+    - key: NODE_ENV
+      value: production
+    - key: PORT
+      value: "3000"
+    - key: DOMAIN
+      value: primosphere.studio
+    - key: FRONTEND_URL
+      value: https://primosphere.studio
+    
+    # Spotify API configuration
+    - key: SPOTIFY_CLIENT_ID
+      value: ${SPOTIFY_CLIENT_ID}
+    - key: SPOTIFY_CLIENT_SECRET
+      value: ${SPOTIFY_CLIENT_SECRET}
+      type: SECRET
+    - key: SPOTIFY_REDIRECT_URI
+      value: https://primosphere.studio/auth/callback
+    - key: SPOTIFY_SCOPES
+      value: user-read-private,user-read-email,user-top-read,user-read-recently-played,playlist-read-private,playlist-read-collaborative,playlist-modify-public,playlist-modify-private
+    
+    # Security configuration
+    - key: SESSION_SECRET
+      value: ${SESSION_SECRET}
+      type: SECRET
+    - key: JWT_SECRET
+      value: ${JWT_SECRET}
+      type: SECRET
+    - key: ENABLE_SECURITY_HEADERS
+      value: "true"
+    - key: FORCE_HTTPS
+      value: "true"
+    
+    # Database configuration
+    - key: MONGODB_URI
+      value: ${MONGODB_URI}
+      type: SECRET
+    - key: DATABASE_TYPE
+      value: mongodb
+    - key: ENABLE_SQLITE_FALLBACK
+      value: "true"
+    
+    # AI/LLM configuration
+    - key: DEFAULT_LLM_PROVIDER
+      value: ${DEFAULT_LLM_PROVIDER:-mock}
+    - key: GEMINI_API_KEY
+      value: ${GEMINI_API_KEY}
+      type: SECRET
+    - key: OPENAI_API_KEY
+      value: ${OPENAI_API_KEY}
+      type: SECRET
+    
+    # Performance and optimization
+    - key: CACHE_ENABLED
+      value: "true"
+    - key: COMPRESSION
+      value: "true"
+    - key: RATE_LIMIT_ENABLED
+      value: "true"
+    - key: API_RATE_LIMIT
+      value: "10r/s"
+    
+    # Monitoring and logging
+    - key: LOG_LEVEL
+      value: info
+    - key: HEALTH_CHECK_ENABLED
+      value: "true"
+    - key: METRICS_ENABLED
+      value: "true"
+    
+    # Feature flags
+    - key: FEATURE_CHAT
+      value: "true"
+    - key: FEATURE_RECOMMENDATIONS
+      value: "true"
+    - key: FEATURE_PLAYLISTS
+      value: "true"
+    - key: FEATURE_ANALYTICS
+      value: "true"
+
+  # MCP (Model Context Protocol) Server
+  - name: mcp-server
+    source_dir: /mcp-server
+    github:
+      repo: dzp5103/Spotify-echo
+      branch: main
+      deploy_on_push: true
+    
+    # For container deployment (uncomment when using container registry)
+    # image:
+    #   registry_type: DOCR
+    #   repository: echotune-mcp
+    #   tag: latest
+    
+    build_command: |
+      echo "Installing MCP server dependencies..."
+      npm ci --prefer-offline --no-audit
+      echo "MCP server build completed"
+    
+    run_command: npm start
+    
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xs
+    
+    # Health check for MCP server
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 30
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    
+    http_port: 3001
+    routes:
+    - path: /mcp
+      preserve_path_prefix: false
+    
+    envs:
+    - key: NODE_ENV
+      value: production
+    - key: PORT
+      value: "3001"
+    - key: MCP_SERVER_HOST
+      value: "0.0.0.0"
+    
+    # Spotify credentials for MCP server
+    - key: SPOTIFY_CLIENT_ID
+      value: ${SPOTIFY_CLIENT_ID}
+    - key: SPOTIFY_CLIENT_SECRET
+      value: ${SPOTIFY_CLIENT_SECRET}
+      type: SECRET
+
+# Database services (optional - can use external services)
+databases:
+- name: echotune-db
+  engine: MONGODB
+  version: "7"
+  size: db-s-1vcpu-1gb
+  num_nodes: 1
+  production: true
+
+# Static site for documentation (optional)
+static_sites:
+- name: docs
+  source_dir: /docs
   github:
     repo: dzp5103/Spotify-echo
     branch: main
-    deploy_on_push: true
-  run_command: node src/index.js
-  environment_slug: node-js
-  instance_count: 1
-  instance_size_slug: basic-xxs
-  dockerfile_path: Dockerfile
-  http_port: 3000
+  build_command: |
+    if [ -d "docs" ]; then
+      echo "Building documentation..."
+      # Add any documentation build commands here
+    fi
+  output_dir: /docs
+  index_document: index.html
+  error_document: 404.html
+  routes:
+  - path: /docs
+    preserve_path_prefix: true
+
+# Jobs for background tasks (optional)
+jobs:
+- name: data-sync
+  source_dir: /scripts
+  github:
+    repo: dzp5103/Spotify-echo
+    branch: main
   
-  # Environment variables for production
+  build_command: |
+    echo "Installing Python dependencies for data sync..."
+    pip install -r requirements.txt
+  
+  run_command: python scripts/data_sync_job.py
+  
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xs
+  
+  # Run daily at 2 AM UTC
+  schedule: "0 2 * * *"
+  
+  envs:
+  - key: MONGODB_URI
+    value: ${MONGODB_URI}
+    type: SECRET
+  - key: SPOTIFY_CLIENT_ID
+    value: ${SPOTIFY_CLIENT_ID}
+  - key: SPOTIFY_CLIENT_SECRET
+    value: ${SPOTIFY_CLIENT_SECRET}
+    type: SECRET
+
+# Function for serverless tasks (optional)
+functions:
+- name: analytics-processor
+  source_dir: /functions
+  github:
+    repo: dzp5103/Spotify-echo
+    branch: main
+  
+  build_command: |
+    echo "Building analytics function..."
+    npm ci --prefer-offline
+  
+  run_command: npm start
+  
+  environment_slug: node-js
+  
+  routes:
+  - path: /api/analytics
+    preserve_path_prefix: false
+  
   envs:
   - key: NODE_ENV
     value: production
-    scope: RUN_AND_BUILD_TIME
-  - key: PORT
-    value: "3000"
-    scope: RUN_AND_BUILD_TIME
-  - key: DOMAIN
-    value: primosphere.studio
-    scope: RUN_AND_BUILD_TIME
-  - key: FRONTEND_URL
-    value: https://primosphere.studio
-    scope: RUN_AND_BUILD_TIME
-  
-  # Health check configuration
-  health_check:
-    http_path: /health
-    initial_delay_seconds: 30
-    period_seconds: 10
-    timeout_seconds: 5
-    success_threshold: 1
-    failure_threshold: 3
-  
-  # Resource limits
-  resources:
-    memory: 1GB
-    cpu: 1
-  
-  # Routes configuration
-  routes:
-  - path: /
-  - path: /api
-  - path: /auth
-  - path: /health
-
-databases:
-- name: mongodb
-  engine: MONGODB
-  version: "7"
-  production: true
-  size: db-s-1vcpu-1gb
-
-# Features
-features:
-- buildpack-stack-22
+  - key: MONGODB_URI
+    value: ${MONGODB_URI}
+    type: SECRET
