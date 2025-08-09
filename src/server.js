@@ -14,6 +14,7 @@ dotenv.config();
 // Import Redis and session management
 const session = require('express-session');
 const { initializeRedis, getRedisManager } = require('./utils/redis');
+const { createRedisSession } = require('./auth/redis-session-store');
 
 // Import configuration and validation
 const { validateProductionConfig, getEnvironmentConfig } = require('./config/production');
@@ -45,6 +46,10 @@ const advancedSettingsRoutes = require('./api/advanced-settings'); // Advanced S
 const docsRoutes = require('./api/routes/docs'); // API documentation
 const adminRoutes = require('./api/routes/admin'); // MongoDB admin dashboard and tools
 const enhancedMCPRoutes = require('./api/routes/enhanced-mcp'); // Enhanced MCP and multimodel capabilities
+// Import enhanced authentication system
+const { createAuthMiddleware } = require('./auth/auth-middleware');
+const { router: authRoutes, initializeAuthRoutes } = require('./auth/auth-routes');
+
 const {
   extractUser,
   ensureDatabase,
@@ -94,15 +99,26 @@ const securityManager = new SecurityManager();
 
 // Initialize Redis and session management
 let redisManager = null;
+let authMiddleware = null;
 
 async function initializeRedisSession() {
   try {
     redisManager = await initializeRedis();
     console.log('🔄 Redis manager initialized');
+    
+    // Initialize enhanced authentication system
+    authMiddleware = createAuthMiddleware({ redisManager });
+    console.log('🔐 Enhanced authentication system initialized');
+    
     return redisManager;
   } catch (error) {
     console.warn('⚠️ Redis initialization failed:', error.message);
     console.log('📦 Using in-memory fallback for sessions');
+    
+    // Initialize auth middleware without Redis
+    authMiddleware = createAuthMiddleware({});
+    console.log('🔐 Authentication system initialized (in-memory fallback)');
+    
     return null;
   }
 }
@@ -163,7 +179,7 @@ if (config.server.compression) {
 }
 
 // Session management with Redis store or memory fallback
-const sessionConfig = {
+let sessionConfig = {
   secret: process.env.SESSION_SECRET || 'fallback-dev-secret-change-in-production',
   name: 'echotune.session',
   resave: false,
@@ -177,8 +193,18 @@ const sessionConfig = {
   }
 };
 
-// Note: Redis session store will be configured during initialization
-app.use(session(sessionConfig));
+// Redis session store will be configured during initialization
+// This will be updated after Redis initialization
+app.use((req, res, next) => {
+  if (redisManager) {
+    // Use Redis session store
+    const redisSession = createRedisSession(redisManager);
+    redisSession(req, res, next);
+  } else {
+    // Use memory session store
+    session(sessionConfig)(req, res, next);
+  }
+});
 
 // Enhanced security headers (replaces basic securityHeaders)
 app.use(securityHeaders);
@@ -287,8 +313,24 @@ app.use(
 // Database connection middleware
 app.use(ensureDatabase);
 
-// User extraction middleware for all routes
-app.use(extractUser);
+// Enhanced authentication middleware (replaces extractUser)
+app.use((req, res, next) => {
+  if (authMiddleware) {
+    authMiddleware.extractAuth(req, res, next);
+  } else {
+    // Fallback to legacy auth
+    extractUser(req, res, next);
+  }
+});
+
+// Development mode bypass for testing
+app.use((req, res, next) => {
+  if (authMiddleware) {
+    authMiddleware.developmentBypass(req, res, next);
+  } else {
+    next();
+  }
+});
 
 // Enhanced API routes with new systems
 app.use('/api', healthRoutes);
@@ -796,6 +838,9 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // API Routes
+// Enhanced authentication routes (replaces legacy auth endpoints)
+app.use('/auth', authRoutes);
+
 // Register API routes
 app.use('/api/docs', docsRoutes); // API documentation - must come first
 app.use('/api/chat', chatRoutes);
@@ -1062,11 +1107,23 @@ server.listen(PORT, '0.0.0.0', async () => {
     redisManager = await initializeRedisSession();
     if (redisManager && redisManager.useRedis) {
       console.log('💾 Redis initialized for sessions and caching');
+      
+      // Initialize auth routes with Redis
+      initializeAuthRoutes(redisManager);
+      console.log('🔐 Auth routes initialized with Redis backing');
     } else {
       console.log('💾 Using in-memory fallback for sessions and caching');
+      
+      // Initialize auth routes without Redis
+      initializeAuthRoutes();
+      console.log('🔐 Auth routes initialized with in-memory storage');
     }
   } catch (error) {
     console.warn('⚠️ Redis setup failed:', error.message);
+    
+    // Initialize auth routes without Redis
+    initializeAuthRoutes();
+    console.log('🔐 Auth routes initialized (fallback mode)');
   }
 
   // Initialize database manager with fallback support
