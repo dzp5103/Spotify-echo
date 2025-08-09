@@ -9,14 +9,14 @@ import { useState, useEffect, useCallback } from 'react';
 // Uncomment and use specific imports when implementing the actual UI
 /*
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Tabs,
-  Tab,
-  TextField,
-  Button,
+  Box as _Box,
+  Card as _Card,
+  CardContent as _CardContent,
+  Typography as _Typography,
+  Tabs as _Tabs,
+  Tab as _Tab,
+  TextField as _TextField,
+  Button as _Button,
   Select,
   MenuItem,
   FormControl,

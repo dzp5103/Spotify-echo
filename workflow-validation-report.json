@@ -1,0 +1,63 @@
+{
+  "timestamp": "2025-08-09T12:37:53.729Z",
+  "summary": {
+    "total": 28,
+    "valid": 28,
+    "warnings": 10,
+    "errors": 0,
+    "optimizations": [
+      {
+        "file": "#mcp-integration.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "agent-mcp-automation.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "ci.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "deploy-one-click.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "digitalocean-deploy.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "gpt5-advanced-multimodel.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "mcp-validation-gateway.yml",
+        "type": "caching",
+        "suggestion": "Consider adding npm cache for faster builds"
+      },
+      {
+        "file": "mcp-validation-gateway.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      },
+      {
+        "file": "pr-slash-commands.yml",
+        "type": "caching",
+        "suggestion": "Consider adding pip cache for faster builds"
+      }
+    ]
+  },
+  "recommendations": [
+    "Enable caching for package managers (npm, pip) to improve build times",
+    "Use conditional execution (if:) to avoid unnecessary job runs",
+    "Implement job dependencies (needs:) for optimal parallelization",
+    "Regular security scanning for secrets and credentials",
+    "Monitor workflow execution times and optimize resource usage"
+  ]
+}

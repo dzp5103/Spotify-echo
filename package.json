@@ -232,7 +232,7 @@
     "mcp:candidates": "node scripts/run-all-candidates.js",
     "test:candidates": "jest mcp-servers/new-candidates/*/test.js",
     "enhanced-mcp:start": "node src/mcp/enhanced-multimodel-orchestrator.js",
-    "enhanced-mcp:workflow": "node src/mcp/workflow-integration-manager.js", 
+    "enhanced-mcp:workflow": "node src/mcp/workflow-integration-manager.js",
     "enhanced-mcp:test": "node -e \"const WorkflowManager = require('./src/mcp/workflow-integration-manager'); const manager = new WorkflowManager(); console.log('Enhanced MCP system initialized successfully');\"",
     "enhanced-mcp:health": "curl -s http://localhost:3000/api/enhanced-mcp/health | jq '.' || echo 'Enhanced MCP server not running'",
     "enhanced-mcp:capabilities": "curl -s http://localhost:3000/api/enhanced-mcp/capabilities | jq '.' || echo 'Enhanced MCP server not running'",
