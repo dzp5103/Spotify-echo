@@ -1,0 +1,98 @@
+name: "Bug Fix"
+description: "Template for resolving bugs with systematic approach"
+version: "1.0.0"
+category: "bug-fixes"
+
+parameters:
+  bug_id:
+    type: "string"
+    required: true
+    description: "Bug identifier or issue number"
+    validation: "^(#?\\d+|[a-zA-Z0-9_-]+)$"
+  
+  severity:
+    type: "string"
+    required: false
+    default: "medium"
+    options: ["low", "medium", "high", "critical"]
+    description: "Bug severity level"
+  
+  affected_component:
+    type: "string"
+    required: false
+    description: "Component or module affected by the bug"
+    
+  reproduction_steps:
+    type: "text"
+    required: false
+    description: "Steps to reproduce the bug"
+
+triggers:
+  - type: "pr_comment"
+    pattern: "/fix bug (.+)"
+    capture_groups:
+      bug_id: 1
+  
+  - type: "issue_label"
+    labels: ["bug", "critical-bug", "hotfix"]
+    
+  - type: "manual"
+    description: "Manually triggered for bug resolution"
+
+workflow_steps:
+  - id: "analyze_bug"
+    name: "Analyze Bug Report"
+    type: "analysis"
+    timeout: "15m"
+    inputs:
+      bug_id: "{{parameters.bug_id}}"
+      component: "{{parameters.affected_component}}"
+    outputs:
+      - root_cause_analysis
+      - affected_files
+      - test_cases
+    
+  - id: "create_fix"
+    name: "Implement Bug Fix"
+    type: "coding"
+    depends_on: ["analyze_bug"]
+    timeout: "20m"
+    inputs:
+      analysis: "{{steps.analyze_bug.outputs.root_cause_analysis}}"
+      files: "{{steps.analyze_bug.outputs.affected_files}}"
+    outputs:
+      - fix_changes
+      - modified_files
+      
+  - id: "create_regression_tests"
+    name: "Create Regression Tests"
+    type: "testing"
+    depends_on: ["create_fix"]
+    timeout: "15m"
+    inputs:
+      bug_id: "{{parameters.bug_id}}"
+      test_cases: "{{steps.analyze_bug.outputs.test_cases}}"
+      fix_changes: "{{steps.create_fix.outputs.fix_changes}}"
+    outputs:
+      - regression_tests
+      - test_results
+
+success_criteria:
+  - name: "fix_implemented"
+    check: "step_successful"
+    step: "create_fix"
+    
+  - name: "tests_created"
+    check: "step_successful"
+    step: "create_regression_tests"
+
+integrations:
+  github_actions:
+    - workflow: "enhanced-mcp-phase1.yml"
+      trigger_on: ["create_fix"]
+    
+  mcp_servers:
+    - server: "filesystem"
+      operations: ["analyze_files", "modify_files"]
+    - server: "code-sandbox"
+      operations: ["validate_fix", "run_tests"]

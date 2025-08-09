@@ -1,0 +1,97 @@
+name: "Performance Optimization"
+description: "Template for performance improvements and optimizations"
+version: "1.0.0"
+category: "performance-optimization"
+
+parameters:
+  optimization_target:
+    type: "string"
+    required: true
+    description: "Target area for optimization"
+    options: ["database", "api", "frontend", "memory", "cpu", "network"]
+  
+  performance_metric:
+    type: "string"
+    required: false
+    description: "Specific metric to improve (e.g., response time, memory usage)"
+  
+  target_improvement:
+    type: "string"
+    required: false
+    description: "Target improvement percentage or absolute value"
+  
+  baseline_measurement:
+    type: "string"
+    required: false
+    description: "Current baseline performance measurement"
+
+triggers:
+  - type: "pr_comment"
+    pattern: "/optimize (.+)"
+    capture_groups:
+      optimization_target: 1
+  
+  - type: "issue_label"
+    labels: ["performance", "optimization", "slow"]
+    
+  - type: "scheduled"
+    cron: "0 2 * * 1"  # Weekly on Monday 2 AM
+    description: "Weekly performance review"
+
+workflow_steps:
+  - id: "performance_audit"
+    name: "Conduct Performance Audit"
+    type: "analysis"
+    timeout: "20m"
+    inputs:
+      target: "{{parameters.optimization_target}}"
+      metric: "{{parameters.performance_metric}}"
+    outputs:
+      - performance_report
+      - bottlenecks
+      - optimization_opportunities
+    
+  - id: "implement_optimizations"
+    name: "Implement Performance Optimizations"
+    type: "coding"
+    depends_on: ["performance_audit"]
+    timeout: "30m"
+    inputs:
+      bottlenecks: "{{steps.performance_audit.outputs.bottlenecks}}"
+      opportunities: "{{steps.performance_audit.outputs.optimization_opportunities}}"
+    outputs:
+      - optimization_changes
+      - modified_files
+      
+  - id: "benchmark_improvements"
+    name: "Benchmark Performance Improvements"
+    type: "testing"
+    depends_on: ["implement_optimizations"]
+    timeout: "15m"
+    inputs:
+      baseline: "{{parameters.baseline_measurement}}"
+      changes: "{{steps.implement_optimizations.outputs.optimization_changes}}"
+    outputs:
+      - benchmark_results
+      - performance_comparison
+
+success_criteria:
+  - name: "optimizations_implemented"
+    check: "step_successful"
+    step: "implement_optimizations"
+    
+  - name: "performance_improved"
+    check: "performance_threshold"
+    step: "benchmark_improvements"
+    threshold: "5%"  # Minimum 5% improvement required
+
+integrations:
+  github_actions:
+    - workflow: "enhanced-mcp-phase1.yml"
+      trigger_on: ["implement_optimizations"]
+    
+  mcp_servers:
+    - server: "analytics-server"
+      operations: ["performance_monitoring", "benchmark_analysis"]
+    - server: "code-sandbox"
+      operations: ["performance_testing", "load_testing"]

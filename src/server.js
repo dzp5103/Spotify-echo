@@ -45,6 +45,7 @@ const advancedSettingsRoutes = require('./api/advanced-settings'); // Advanced S
 const docsRoutes = require('./api/routes/docs'); // API documentation
 const adminRoutes = require('./api/routes/admin'); // MongoDB admin dashboard and tools
 const enhancedMCPRoutes = require('./api/routes/enhanced-mcp'); // Enhanced MCP and multimodel capabilities
+const workflowRoutes = require('../agent-workflow/workflow-api'); // Dynamic workflow management
 const {
   extractUser,
   ensureDatabase,
@@ -813,6 +814,7 @@ app.use('/api/feedback', feedbackRoutes); // New feedback system
 app.use('/api/music', musicDiscoveryRoutes); // Enhanced music discovery system
 app.use('/api/admin', adminRoutes); // MongoDB admin dashboard and tools
 app.use('/api/enhanced-mcp', enhancedMCPRoutes); // Enhanced MCP and multimodel capabilities
+app.use('/api/workflow', workflowRoutes); // Dynamic workflow management
 
 // Deployment API routes
 const deployRoutes = require('./api/routes/deploy');

@@ -1,16 +1,6 @@
 {
-  "status": "cycle_complete",
-  "cycle": 5,
-  "last_updated": "2025-08-04T06:20:36.012Z",
-  "current_task": null,
-  "pending_tasks": [],
-  "completed_cycles": [],
-  "errors": [],
-  "next_action": "waiting_for_pr_completion",
-  "workflow_state": {
-    "last_pr_analyzed": null,
-    "last_summary_generated": null,
-    "last_tasks_created": "2025-08-04T06:20:36.190Z",
-    "last_pr_created": null
-  }
+  "status": "workflow_started",
+  "last_updated": "2025-08-09T13:09:38.238Z",
+  "active_workflows": 1,
+  "workflow_id": "feature-development-1754744978237-imtmrzo3j"
 }

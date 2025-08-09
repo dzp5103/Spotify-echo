@@ -1,0 +1,58 @@
+{
+  "enabled": true,
+  "auto_assign": true,
+  "max_concurrent_workflows": 3,
+  "default_timeout": "30m",
+  "notification_channels": ["pr_comment", "issue_comment"],
+  "github_api": {
+    "base_url": "https://api.github.com",
+    "repo_owner": "dzp5103",
+    "repo_name": "Spotify-echo"
+  },
+  "workflow_triggers": {
+    "pr_comments": {
+      "enabled": true,
+      "patterns": [
+        "/implement feature (.+)",
+        "/fix bug (.+)",
+        "/optimize (.+)",
+        "/test (.+)",
+        "/document (.+)"
+      ]
+    },
+    "issue_labels": {
+      "enabled": true,
+      "feature_labels": ["feature-request", "enhancement"],
+      "bug_labels": ["bug", "critical-bug", "hotfix"],
+      "performance_labels": ["performance", "optimization", "slow"],
+      "testing_labels": ["testing", "test-coverage"],
+      "documentation_labels": ["documentation", "docs"]
+    },
+    "scheduled": {
+      "enabled": false,
+      "maintenance_check": "0 2 * * 1",
+      "performance_review": "0 2 * * 1"
+    }
+  },
+  "integrations": {
+    "github_actions": {
+      "enabled": true,
+      "workflow_file": "dynamic-workflow-handler.yml"
+    },
+    "mcp_servers": {
+      "enabled": true,
+      "servers": ["filesystem", "code-sandbox", "analytics-server"],
+      "timeout": "5m"
+    }
+  },
+  "validation": {
+    "required_parameters": true,
+    "check_conditions": true,
+    "validate_templates": true
+  },
+  "logging": {
+    "level": "info",
+    "include_parameters": false,
+    "include_context": true
+  }
+}
