@@ -1,0 +1,42 @@
+name: MCP Health Snapshot
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate MCP health snapshot
+        shell: bash
+        run: |
+          mkdir -p reports
+          REGISTRY_ENTRIES=0
+          if [ -f mcp/registry.yaml ]; then
+            # Minimal heuristic: 0 when "servers: []", otherwise count lines with "-" under servers
+            if grep -q "servers:\s*\[\s*\]" mcp/registry.yaml; then
+              REGISTRY_ENTRIES=0
+            else
+              REGISTRY_ENTRIES=$(awk '/^servers:/ {flag=1; next} /^\S/ {flag=0} flag && /^\s*-/{count++} END{print count+0}' mcp/registry.yaml)
+            fi
+          fi
+          {
+            echo "# MCP Health"
+            echo
+            echo "- Timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "- Registry entries: ${REGISTRY_ENTRIES}"
+            echo
+            echo "## Notes"
+            echo "Placeholder health check. Replace with real probes per server in mcp/registry.yaml."
+          } > reports/mcp-health.md
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-health
+          path: reports/mcp-health.md

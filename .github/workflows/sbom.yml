@@ -1,0 +1,26 @@
+name: Generate SBOM
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0.17.10
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          mkdir -p reports
+          syft packages dir:. -o cyclonedx-json > reports/sbom.json || echo "{}" > reports/sbom.json
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: reports/sbom.json

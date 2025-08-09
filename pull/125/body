@@ -1,0 +1,59 @@
+This PR establishes the foundational directory structure and placeholder files to support upcoming Copilot agent audits, MCP validations, and automated CI reporting capabilities.
+
+## Changes Made
+
+### New `reports/` Directory
+Created a dedicated directory for machine-generated and semi-automated reports with the following placeholder files:
+- `README.md` - Documents the purpose and planned artifacts for the reports directory
+- `sbom.json` - Empty placeholder for future CycloneDX Software Bill of Materials
+- `code-graph.md` - Placeholder for auto-generated module dependency diagrams (Mermaid format)
+- `redundancy-audit.md` - Placeholder for duplicate/unused file audits by Copilot agent
+- `perf-baseline.json` - Empty placeholder for performance metrics and trend data
+- `mcp-health.md` - Seed file for MCP server health snapshots
+
+### New `mcp/` Directory
+Added a separate registry directory (distinct from existing `mcp-server/` and `mcp-servers/` directories):
+- `registry.yaml` - Empty servers array ready for MCP server registrations
+
+### Documentation Enhancement
+- `docs/configuration.md` - Added environment variables documentation placeholder with expected keys for Spotify, OpenAI, MongoDB, and other service integrations
+
+### PR Template
+- `.github/PULL_REQUEST_TEMPLATE.md` - Created general PR template that references CI artifacts, MCP validation results, and security checklists (coexists with existing MCP-specific template)
+
+## Purpose
+
+These scaffolding files prepare the repository for:
+1. **Automated CI Reports** - SBOM generation, security scans, performance baselines
+2. **MCP Health Monitoring** - Server status tracking and validation artifacts  
+3. **Code Analysis** - Dependency graphs, redundancy audits, and optimization suggestions
+4. **Standardized PR Process** - Consistent artifact collection and validation workflows
+
+## Technical Notes
+
+- All files contain exact placeholder content as specified in requirements
+- The `reports/` directory was force-added despite being in `.gitignore` to establish the baseline structure
+- No application code was modified - only scaffolding and documentation files added
+- Maintains separation from existing MCP infrastructure while preparing for integration
+
+## Linked Issues
+- Relates to #126 (Wire MCP Validation Workflows and Initial Report Scaffolding)
+- Relates to #131 (MCP Integration Phase — Planning & Discovery)
+- Relates to #133 (MCP Integration Phase — Execution)
+
+## Acceptance Checklist
+- [ ] `reports/` directory includes: `README.md`, `sbom.json`, `code-graph.md`, `redundancy-audit.md`, `perf-baseline.json`, `mcp-health.md`
+- [ ] `mcp/registry.yaml` exists with `servers: []`
+- [ ] `docs/configuration.md` placeholder added
+- [ ] `.github/PULL_REQUEST_TEMPLATE.md` added
+- [ ] No application code changed in this PR
+- [ ] CI runs succeed for this PR (where applicable); artifact path standardized to `reports/`
+
+## Operational Notes
+- `reports/` was intentionally committed to seed the artifact structure
+- Follow-ups: #126 (workflows), #131 (planning), #133 (execution)
+
+<!-- START COPILOT CODING AGENT TIPS -->
+---
+
+✨ Let Copilot coding agent [set things up for you](https://github.com/dzp5103/Spotify-echo/issues/new?title=✨Set+up+Copilot+instructions&body=Configure%20instructions%20for%20this%20repository%20as%20documented%20in%20%5BBest%20practices%20for%20Copilot%20coding%20agent%20in%20your%20repository%5D(https://gh.io/copilot-coding-agent-tips)%0A%0A%3COnboard%20this%20repo%3E&assignees=copilot) — coding agent works faster and does higher quality work when set up for your repo.
