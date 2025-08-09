@@ -1,221 +1,209 @@
 {
-  "timestamp": "2025-08-09T03:08:36.078Z",
+  "timestamp": "2025-08-09T05:11:09.878Z",
   "summary": {
-    "totalServers": 25,
-    "serversByType": {
-      "configured": 9,
-      "mcp-server": 13,
-      "legacy": 3
-    },
-    "health": {
-      "healthy": 22,
-      "unhealthy": 3,
-      "total": 25
-    }
+    "overall_status": "critical",
+    "health_score": 0,
+    "total_servers": 3,
+    "healthy_servers": 0,
+    "failed_servers": 3,
+    "warnings": 0
   },
-  "details": {
-    "health": [
-      {
-        "name": "browser",
-        "status": "healthy",
-        "responseTime": 130,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "browserbase",
-        "status": "healthy",
-        "responseTime": 119,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "filesystem",
-        "status": "healthy",
-        "responseTime": 7,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "spotify",
-        "status": "healthy",
-        "responseTime": 3,
-        "endpoint": "command:python",
-        "details": "python is available"
-      },
-      {
-        "name": "sequential-thinking",
-        "status": "healthy",
-        "responseTime": 6,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "screenshot-website",
-        "status": "healthy",
-        "responseTime": 6,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "enhanced-file-utilities",
-        "status": "healthy",
-        "responseTime": 5,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "enhanced-browser-tools",
-        "status": "healthy",
-        "responseTime": 5,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "comprehensive-validator",
-        "status": "healthy",
-        "responseTime": 5,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "mcp-sequential-thinking",
-        "status": "healthy",
-        "responseTime": 5,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "mcp-github",
-        "status": "healthy",
-        "responseTime": 4,
-        "endpoint": "command:docker",
-        "details": "docker is available"
-      },
-      {
-        "name": "mcp-filesystem",
-        "status": "healthy",
-        "responseTime": 139,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-sqlite",
-        "status": "healthy",
-        "responseTime": 5,
-        "endpoint": "command:python",
-        "details": "python is available"
-      },
-      {
-        "name": "mcp-memory",
-        "status": "healthy",
-        "responseTime": 132,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-postgres",
-        "status": "healthy",
-        "responseTime": 137,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-brave-search",
-        "status": "healthy",
-        "responseTime": 119,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-screenshot-website",
-        "status": "healthy",
-        "responseTime": 6,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "mcp-browserbase",
-        "status": "healthy",
-        "responseTime": 99,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-mermaid",
-        "status": "healthy",
-        "responseTime": 102,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-browser",
-        "status": "healthy",
-        "responseTime": 102,
-        "endpoint": "command:npx",
-        "details": "npx is available"
-      },
-      {
-        "name": "mcp-spotify",
-        "status": "healthy",
-        "responseTime": 3,
-        "endpoint": "command:python",
-        "details": "python is available"
-      },
-      {
-        "name": "mcp-sentry",
-        "status": "healthy",
-        "responseTime": 6,
-        "endpoint": "command:node",
-        "details": "node is available"
-      },
-      {
-        "name": "enhanced-server",
+  "components": {
+    "mcp_servers": {
+      "mcpHealth": {
+        "name": "mcpHealth",
+        "config": {
+          "command": "node",
+          "args": [
+            "health.js"
+          ],
+          "port": 3001,
+          "healthPath": "/health",
+          "env": {
+            "NODE_ENV": "production",
+            "MCP_SERVER_NAME": "mcpHealth"
+          },
+          "timeout": 30000,
+          "retries": 3
+        },
         "status": "unhealthy",
-        "error": "Port 3001 not responding: No health endpoint on port 3001",
-        "type": "legacy"
+        "response_time": 5086,
+        "error_message": "Health check failed",
+        "last_check": "2025-08-09T05:11:09.973Z"
       },
-      {
-        "name": "orchestration-engine",
+      "mcpOrchestrator": {
+        "name": "mcpOrchestrator",
+        "config": {
+          "command": "node",
+          "args": [
+            "enhanced-mcp-orchestrator.js"
+          ],
+          "port": 3002,
+          "healthPath": "/health",
+          "env": {
+            "NODE_ENV": "production",
+            "MCP_SERVER_NAME": "mcpOrchestrator"
+          },
+          "timeout": 45000,
+          "retries": 3
+        },
         "status": "unhealthy",
-        "error": "Port 3002 not responding: No health endpoint on port 3002",
-        "type": "legacy"
+        "response_time": 5086,
+        "error_message": "Health check failed",
+        "last_check": "2025-08-09T05:11:15.060Z"
       },
-      {
-        "name": "spotify-server",
+      "mcpWorkflow": {
+        "name": "mcpWorkflow",
+        "config": {
+          "command": "node",
+          "args": [
+            "workflow-manager.js"
+          ],
+          "port": 3003,
+          "healthPath": "/status",
+          "env": {
+            "NODE_ENV": "production",
+            "MCP_SERVER_NAME": "mcpWorkflow"
+          },
+          "timeout": 30000,
+          "retries": 3
+        },
         "status": "unhealthy",
-        "error": "Port 3003 not responding: No health endpoint on port 3003",
-        "type": "legacy"
+        "response_time": 5086,
+        "error_message": "Health check failed",
+        "last_check": "2025-08-09T05:11:20.146Z"
       }
-    ],
-    "environment": {
-      "found": 0,
-      "total": 8,
-      "missing": [
-        "NODE_ENV",
-        "PORT",
-        "SPOTIFY_CLIENT_ID",
-        "SPOTIFY_CLIENT_SECRET",
-        "MONGODB_URI",
-        "OPENAI_API_KEY",
-        "GEMINI_API_KEY",
-        "BROWSERBASE_API_KEY"
-      ],
-      "hasRequired": false,
-      "requiredMissing": [
-        "NODE_ENV",
-        "PORT"
-      ]
     },
-    "fileSystem": {
-      "MCP Server Config": true,
-      "Response Formatter": true,
-      "Environment Template": true,
-      "Integration Tests": true
+    "workflows": {
+      "total_workflows": 30,
+      "mcp_workflows": 6,
+      "workflow_files": [
+        "#mcp-inntegration.yml",
+        "agent-mcp-automation.yml",
+        "mcp-scheduled-discovery.yml",
+        "mcp-slash-commands.yml",
+        "mcp-validation-gateway.yml",
+        "mcp-validation.yml"
+      ],
+      "status": "active",
+      "required_workflows": {
+        "mcp-validation.yml": true,
+        "mcp-validation-gateway.yml": true,
+        "mcp-scheduled-discovery.yml": true
+      }
+    },
+    "packages": {
+      "name": "echotune-ai",
+      "version": "2.1.0",
+      "total_dependencies": 82,
+      "mcp_dependencies": 8,
+      "mcp_dependency_list": [
+        "@browserbasehq/mcp-server-browserbase",
+        "@modelcontextprotocol/sdk",
+        "@modelcontextprotocol/server-filesystem",
+        "@modelcontextprotocol/server-sequential-thinking",
+        "mcp-server-code-runner",
+        "mongodb-mcp-server",
+        "n8n-mcp",
+        "puppeteer-mcp-server"
+      ],
+      "mcp_scripts": 54,
+      "mcp_script_list": [
+        "mcp-server",
+        "mcp-orchestrator",
+        "mcp-workflow",
+        "mcp-community",
+        "mcp:install",
+        "mcp:health",
+        "mcp:test",
+        "mcp:report",
+        "mcp:validate",
+        "mcp:package-mgmt",
+        "mcp:code-sandbox",
+        "mcp:analytics",
+        "mcp:testing",
+        "mcp:sentry",
+        "mcp:sentry-test",
+        "mcp:sentry-health",
+        "mcp:discover",
+        "mcp:auto-docs",
+        "mcp:full-automation",
+        "mcp:test-automation",
+        "mcp:health-all",
+        "mcp:validate-comprehensive",
+        "test:mcp",
+        "test:mcp-performance",
+        "test:mcp-integration",
+        "integrate-mcp",
+        "mcp-integrate",
+        "mcp-test-filesystem",
+        "mcp-test-browserbase",
+        "mcp-generate-diagrams",
+        "mcp-analyze-repo",
+        "mcp-server-start",
+        "mcp-test-integration",
+        "validate:mcp-server",
+        "automate:mcp",
+        "validate:comprehensive-mcp",
+        "mcp-health-check",
+        "mcp-manage",
+        "mcp-install",
+        "mcp-test-all",
+        "mcp-health",
+        "mcp-report",
+        "mcp-validate",
+        "mcp-spotify",
+        "mcp:n8n_mcp",
+        "test:n8n_mcp",
+        "mcp:mcp_server_code_runner",
+        "test:mcp_server_code_runner",
+        "mcp:mongodb_mcp_server",
+        "test:mongodb_mcp_server",
+        "mcp:puppeteer_mcp_server",
+        "test:puppeteer_mcp_server",
+        "mcp:hismaserver_puppeteer",
+        "mcp:candidates"
+      ],
+      "last_modified": "2025-08-09T05:05:23.816Z"
+    },
+    "performance": {
+      "config_load_time_ms": 0,
+      "memory_usage": {
+        "rss_mb": 46,
+        "heap_used_mb": 4,
+        "heap_total_mb": 5,
+        "external_mb": 2
+      },
+      "cpu_usage_percent": {
+        "user": 87515,
+        "system": 31995
+      },
+      "timestamp": "2025-08-09T05:11:25.235Z",
+      "config_performance": "excellent"
     }
   },
   "recommendations": [
-    "Fix 3 unhealthy servers",
-    "Configure required environment variables: NODE_ENV, PORT"
-  ]
+    {
+      "priority": "high",
+      "category": "health",
+      "message": "Multiple MCP servers are unhealthy. Investigate server configurations and connectivity.",
+      "action": "Run `node scripts/mcp-manager.js health` for detailed diagnostics"
+    },
+    {
+      "priority": "low",
+      "category": "maintenance",
+      "message": "Regular MCP system monitoring is active and healthy.",
+      "action": "Continue scheduled health checks and keep dependencies updated"
+    }
+  ],
+  "artifacts": [],
+  "system_info": {
+    "node_version": "v20.19.4",
+    "npm_version": "10.8.2",
+    "python_version": "Python 3.12.3",
+    "uptime_seconds": 0.111520578,
+    "memory_usage_mb": 42,
+    "platform": "linux",
+    "architecture": "x64"
+  }
 }

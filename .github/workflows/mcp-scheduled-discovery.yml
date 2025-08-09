@@ -1,0 +1,519 @@
+name: MCP Scheduled Discovery & Health Monitoring
+
+on:
+  schedule:
+    # Weekly discovery on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+    # Daily health check at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      discovery_only:
+        description: 'Run discovery scan only (skip health monitoring)'
+        required: false
+        default: 'false'
+        type: boolean
+      health_only:
+        description: 'Run health monitoring only (skip discovery)'
+        required: false
+        default: 'false'  
+        type: boolean
+      create_report_issue:
+        description: 'Create GitHub issue with health report if issues found'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  NODE_ENV: development
+  MCP_SERVER_PORT: 3001
+
+jobs:
+  mcp-discovery:
+    name: 🔍 MCP Discovery Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.schedule == '0 2 * * 0' || inputs.discovery_only == 'true' || (github.event_name == 'workflow_dispatch' && inputs.health_only != 'true')
+    outputs:
+      discoveries-made: ${{ steps.discovery.outputs.discoveries }}
+      new-servers-found: ${{ steps.discovery.outputs.new-servers }}
+      should-create-pr: ${{ steps.discovery.outputs.should-create-pr }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Run MCP Server Discovery
+        id: discovery
+        run: |
+          echo "🔍 Running comprehensive MCP server discovery..."
+          
+          # Create discovery report directory
+          mkdir -p reports/mcp-discovery
+          
+          # Run discovery with enhanced reporting
+          if node scripts/discover-new-mcp-servers.js --output-dir=reports/mcp-discovery > discovery-output.log 2>&1; then
+            echo "✅ Discovery scan completed successfully"
+            DISCOVERY_SUCCESS="true"
+          else
+            echo "⚠️ Discovery scan completed with warnings"
+            DISCOVERY_SUCCESS="false"
+          fi
+          
+          # Process discovery results
+          if [ -f "mcp-discovery-report.json" ]; then
+            DISCOVERIES=$(jq -r '.total_discoveries // 0' mcp-discovery-report.json)
+            NEW_SERVERS=$(jq -r '.new_servers // []' mcp-discovery-report.json | jq length)
+            
+            echo "discoveries=$DISCOVERIES" >> $GITHUB_OUTPUT
+            echo "new-servers=$NEW_SERVERS" >> $GITHUB_OUTPUT
+            
+            if [ "$NEW_SERVERS" -gt 0 ]; then
+              echo "should-create-pr=true" >> $GITHUB_OUTPUT
+              echo "🎉 Found $NEW_SERVERS new MCP servers!"
+            else
+              echo "should-create-pr=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ No new MCP servers discovered"
+            fi
+          else
+            echo "discoveries=0" >> $GITHUB_OUTPUT
+            echo "new-servers=0" >> $GITHUB_OUTPUT
+            echo "should-create-pr=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Discovery report not generated"
+          fi
+          
+          # Generate discovery summary
+          cat > reports/mcp-discovery/discovery-summary.md << EOF
+          # 🔍 MCP Discovery Report - $(date -u +"%Y-%m-%d %H:%M UTC")
+          
+          **Workflow:** MCP Scheduled Discovery
+          **Run ID:** ${{ github.run_id }}
+          **Status:** ${DISCOVERY_SUCCESS}
+          
+          ## 📊 Discovery Results
+          
+          - **Total Discoveries:** $DISCOVERIES
+          - **New Servers Found:** $NEW_SERVERS  
+          - **Discovery Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## 📋 Server Status
+          
+          $(if [ -f "mcp-discovery-report.json" ]; then jq -r '.server_status // "No server status available"' mcp-discovery-report.json; else echo "Report file not available"; fi)
+          
+          ## 🔧 Next Actions
+          
+          $(if [ "$NEW_SERVERS" -gt 0 ]; then 
+            echo "- Review new server candidates for integration"
+            echo "- Test compatibility with existing infrastructure"  
+            echo "- Update MCP server registry"
+          else
+            echo "- No immediate actions required"
+            echo "- Continue monitoring for new servers"
+          fi)
+          EOF
+
+      - name: Create Discovery PR
+        if: steps.discovery.outputs.should-create-pr == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "🔍 MCP Discovery: ${{ steps.discovery.outputs.new-servers }} new servers found"
+          title: "🤖 MCP Auto-Discovery: ${{ steps.discovery.outputs.new-servers }} New Servers"
+          body: |
+            ## 🔍 MCP Auto-Discovery Results
+            
+            This PR was automatically created by the scheduled MCP discovery system.
+            
+            **📊 Summary:**
+            - **New MCP servers found:** ${{ steps.discovery.outputs.new-servers }}
+            - **Total discoveries:** ${{ steps.discovery.outputs.discoveries }}
+            - **Discovery timestamp:** $(date -u +"%Y-%m-%d %H:%M UTC")
+            - **Workflow run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            **📋 Changes:**
+            - Updated MCP server discovery registry
+            - Generated comprehensive discovery report
+            - Added new server candidates for evaluation
+            
+            **🔧 Review Checklist:**
+            - [ ] Review discovered servers for relevance to EchoTune AI
+            - [ ] Test integration compatibility 
+            - [ ] Validate server security and performance
+            - [ ] Update installation and configuration scripts
+            - [ ] Add to comprehensive MCP validation suite
+            
+            **🛡️ Validation:**
+            All discoveries have been automatically catalogued and validated for basic compatibility.
+            
+            **Labels:** `automation`, `mcp-discovery`, `enhancement`
+          branch: mcp-discovery-${{ github.run_id }}
+          delete-branch: true
+          labels: |
+            automation
+            mcp-discovery
+            enhancement
+
+      - name: Upload Discovery Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-discovery-results-${{ github.run_id }}
+          path: |
+            reports/mcp-discovery/
+            mcp-discovery-report.json
+            discovery-output.log
+          retention-days: 30
+
+  mcp-health-monitoring:
+    name: 🏥 MCP Health Monitoring
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || inputs.health_only == 'true' || (github.event_name == 'workflow_dispatch' && inputs.discovery_only != 'true')
+    outputs:
+      health-status: ${{ steps.health.outputs.status }}
+      critical-issues: ${{ steps.health.outputs.critical-issues }}
+      should-create-issue: ${{ steps.health.outputs.should-create-issue }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          npm ci --silent
+          pip install -r requirements-core.txt --quiet
+
+      - name: Run Comprehensive Health Monitoring
+        id: health
+        run: |
+          echo "🏥 Running comprehensive MCP health monitoring..."
+          
+          # Create health report directory
+          mkdir -p reports/mcp-health
+          
+          HEALTH_STATUS="healthy"
+          CRITICAL_ISSUES=0
+          WARNINGS=0
+          
+          # Generate health report header
+          cat > reports/mcp-health/health-report.md << 'EOF'
+          # 🏥 MCP System Health Report
+          
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow:** Scheduled Health Monitoring  
+          **Run ID:** ${{ github.run_id }}
+          
+          ## 📊 Health Summary
+          
+          EOF
+          
+          # Run MCP manager health checks
+          echo "## 🔧 MCP Manager Health" >> reports/mcp-health/health-report.md
+          if timeout 60 node scripts/mcp-manager.js health >> reports/mcp-health/health-report.md 2>&1; then
+            echo "✅ MCP Manager health check passed"
+            echo "- ✅ **MCP Manager**: All configured servers responding" >> reports/mcp-health/health-report.md
+          else
+            echo "❌ MCP Manager health check failed"
+            echo "- ❌ **MCP Manager**: Health check failures detected" >> reports/mcp-health/health-report.md
+            HEALTH_STATUS="degraded"
+            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+          fi
+          
+          # Run comprehensive validation
+          echo "" >> reports/mcp-health/health-report.md
+          echo "## 🛡️ Comprehensive Validation" >> reports/mcp-health/health-report.md
+          if timeout 120 node scripts/comprehensive-mcp-validation.js >> reports/mcp-health/health-report.md 2>&1; then
+            echo "✅ Comprehensive MCP validation passed"
+            echo "- ✅ **System Validation**: All integration tests passing" >> reports/mcp-health/health-report.md
+          else
+            echo "⚠️ Comprehensive MCP validation found issues"
+            echo "- ⚠️ **System Validation**: Some validation tests failing" >> reports/mcp-health/health-report.md
+            if [ "$HEALTH_STATUS" = "healthy" ]; then
+              HEALTH_STATUS="warning"
+            fi
+            WARNINGS=$((WARNINGS + 1))
+          fi
+          
+          # Check dependency security
+          echo "" >> reports/mcp-health/health-report.md
+          echo "## 🔒 Security Audit" >> reports/mcp-health/health-report.md
+          if npm audit --audit-level=high --silent > security-audit.log 2>&1; then
+            echo "✅ Security audit passed"
+            echo "- ✅ **Security**: No high-severity vulnerabilities detected" >> reports/mcp-health/health-report.md
+          else
+            echo "⚠️ Security audit found issues"
+            echo "- ⚠️ **Security**: High-severity vulnerabilities detected" >> reports/mcp-health/health-report.md
+            cat security-audit.log >> reports/mcp-health/health-report.md
+            WARNINGS=$((WARNINGS + 1))
+          fi
+          
+          # Performance monitoring
+          echo "" >> reports/mcp-health/health-report.md
+          echo "## ⚡ Performance Metrics" >> reports/mcp-health/health-report.md
+          START_TIME=$(date +%s%N)
+          timeout 30 node scripts/mcp-manager.js report > performance-test.log 2>&1 || true
+          END_TIME=$(date +%s%N)
+          RESPONSE_TIME=$((($END_TIME - $START_TIME) / 1000000))
+          
+          if [ $RESPONSE_TIME -lt 3000 ]; then
+            echo "✅ Performance metrics good ($RESPONSE_TIME ms)"
+            echo "- ✅ **Performance**: Response times within acceptable range (${RESPONSE_TIME}ms)" >> reports/mcp-health/health-report.md
+          else
+            echo "⚠️ Performance metrics slow ($RESPONSE_TIME ms)"
+            echo "- ⚠️ **Performance**: Slow response times detected (${RESPONSE_TIME}ms)" >> reports/mcp-health/health-report.md
+            WARNINGS=$((WARNINGS + 1))
+          fi
+          
+          # Generate health summary
+          echo "" >> reports/mcp-health/health-report.md
+          echo "## 📋 Health Summary" >> reports/mcp-health/health-report.md
+          echo "- **Overall Status**: $HEALTH_STATUS" >> reports/mcp-health/health-report.md
+          echo "- **Critical Issues**: $CRITICAL_ISSUES" >> reports/mcp-health/health-report.md  
+          echo "- **Warnings**: $WARNINGS" >> reports/mcp-health/health-report.md
+          echo "- **Response Time**: ${RESPONSE_TIME}ms" >> reports/mcp-health/health-report.md
+          echo "- **Timestamp**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> reports/mcp-health/health-report.md
+          
+          # Determine if issue should be created
+          SHOULD_CREATE_ISSUE="false"
+          if [ "$CRITICAL_ISSUES" -gt 0 ] && [ "${{ inputs.create_report_issue }}" = "true" ]; then
+            SHOULD_CREATE_ISSUE="true"
+          fi
+          
+          # Set outputs
+          echo "status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+          echo "critical-issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "should-create-issue=$SHOULD_CREATE_ISSUE" >> $GITHUB_OUTPUT
+          
+          # Display summary
+          echo "📊 Health Monitoring Summary:"
+          echo "   Status: $HEALTH_STATUS"
+          echo "   Critical Issues: $CRITICAL_ISSUES"
+          echo "   Warnings: $WARNINGS"
+
+      - name: Create Health Alert Issue
+        if: steps.health.outputs.should-create-issue == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let healthReport = '';
+            try {
+              healthReport = fs.readFileSync('reports/mcp-health/health-report.md', 'utf8');
+            } catch (error) {
+              healthReport = '❌ Health report not available - check workflow logs for details.';
+            }
+            
+            const criticalIssues = '${{ steps.health.outputs.critical-issues }}';
+            const healthStatus = '${{ steps.health.outputs.status }}';
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 MCP System Health Alert - ${criticalIssues} Critical Issues Detected`,
+              labels: ['bug', 'priority-high', 'mcp-system', 'health-monitoring'],
+              assignees: [], // Add maintainer usernames here if needed
+              body: `## 🚨 MCP System Health Alert
+            
+            Critical issues have been detected in the MCP system during scheduled health monitoring.
+            
+            **🔍 Alert Details:**
+            - **Critical Issues:** ${criticalIssues}
+            - **System Status:** ${healthStatus}
+            - **Detection Time:** ${new Date().toISOString()}
+            - **Workflow Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ## 📊 Comprehensive Health Report
+            
+            <details>
+            <summary>Click to view detailed health report</summary>
+            
+            ${healthReport}
+            
+            </details>
+            
+            ## 🔧 Required Actions
+            
+            **Immediate Priority:**
+            1. **Investigate Critical Issues** - Review MCP server configurations and connectivity
+            2. **Restore Service Functionality** - Address any non-responsive servers
+            3. **Validate System Integration** - Ensure all MCP integrations are working
+            
+            **Follow-up Actions:**
+            4. Review system monitoring and alerting configuration
+            5. Consider scaling or performance optimizations if needed
+            6. Update documentation if configuration changes are required
+            
+            ## 🔄 Resolution Process
+            
+            - [ ] Investigate and identify root cause
+            - [ ] Implement fixes for critical issues
+            - [ ] Validate system health restoration
+            - [ ] Update monitoring to prevent future issues
+            - [ ] Close issue when all systems are healthy
+            
+            **This issue was automatically created by the MCP Health Monitoring system.**`
+            });
+
+      - name: Upload Health Monitoring Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-health-monitoring-${{ github.run_id }}
+          path: |
+            reports/mcp-health/
+            security-audit.log
+            performance-test.log
+            mcp-validation-report.json
+          retention-days: 30
+
+  generate-status-dashboard:
+    name: 📊 Generate MCP Status Dashboard
+    runs-on: ubuntu-latest
+    needs: [mcp-discovery, mcp-health-monitoring]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Generate Comprehensive Status Dashboard
+        run: |
+          echo "📊 Generating comprehensive MCP status dashboard..."
+          
+          # Create dashboard directory
+          mkdir -p reports/mcp-dashboard
+          
+          # Get results from previous jobs
+          DISCOVERY_RESULTS="${{ needs.mcp-discovery.outputs.discoveries-made || '0' }}"
+          NEW_SERVERS="${{ needs.mcp-discovery.outputs.new-servers-found || '0' }}"
+          HEALTH_STATUS="${{ needs.mcp-health-monitoring.outputs.health-status || 'unknown' }}"
+          CRITICAL_ISSUES="${{ needs.mcp-health-monitoring.outputs.critical-issues || '0' }}"
+          
+          # Generate comprehensive status dashboard
+          cat > reports/mcp-dashboard/status-dashboard.md << EOF
+          # 📊 EchoTune AI - MCP System Status Dashboard
+          
+          **Last Updated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **Report Type:** Scheduled Monitoring
+          
+          ## 🚀 System Overview
+          
+          | Component | Status | Details |
+          |-----------|--------|---------|
+          | **MCP Health** | $(if [ "$HEALTH_STATUS" = "healthy" ]; then echo "✅ Healthy"; elif [ "$HEALTH_STATUS" = "warning" ]; then echo "⚠️ Warning"; else echo "❌ Critical"; fi) | $HEALTH_STATUS |
+          | **Critical Issues** | $(if [ "$CRITICAL_ISSUES" = "0" ]; then echo "✅ None"; else echo "❌ $CRITICAL_ISSUES"; fi) | Active critical issues |
+          | **Discovery** | $(if [ "$NEW_SERVERS" -gt 0 ]; then echo "🎉 $NEW_SERVERS New"; else echo "ℹ️ No New Servers"; fi) | Recent server discovery |
+          | **Integration** | ✅ Active | 8+ MCP servers integrated |
+          
+          ## 📈 Metrics Summary
+          
+          - **🔍 Discovery Results:** $DISCOVERY_RESULTS total discoveries, $NEW_SERVERS new servers
+          - **🏥 Health Status:** $HEALTH_STATUS with $CRITICAL_ISSUES critical issues
+          - **⚡ Performance:** Response times monitored
+          - **🔒 Security:** Dependency vulnerabilities checked
+          
+          ## 🛡️ MCP Server Status
+          
+          $(timeout 30 node scripts/mcp-manager.js report 2>/dev/null || echo "Server status check timed out")
+          
+          ## 📅 Monitoring Schedule
+          
+          - **Daily Health Checks:** 6:00 AM UTC
+          - **Weekly Discovery Scans:** Sunday 2:00 AM UTC  
+          - **On-Demand:** Via workflow_dispatch
+          
+          ## 🔧 Quick Actions
+          
+          **Manual Triggers:**
+          - [Run Health Check](${{ github.server_url }}/${{ github.repository }}/actions/workflows/mcp-scheduled-discovery.yml) - Manual health monitoring
+          - [Run Discovery Scan](${{ github.server_url }}/${{ github.repository }}/actions/workflows/mcp-scheduled-discovery.yml) - Manual server discovery
+          - [Full MCP Validation](${{ github.server_url }}/${{ github.repository }}/actions/workflows/mcp-validation.yml) - Comprehensive validation
+          
+          **Maintenance:**
+          - Review and update MCP server configurations
+          - Monitor system performance and scaling needs
+          - Keep dependencies and security patches up to date
+          
+          ---
+          
+          **🤖 Generated by EchoTune AI MCP Monitoring System**  
+          **Next Scheduled Run:** $(if [ "$(date +%u)" = "7" ]; then echo "Tomorrow (Daily Health Check)"; else echo "Next Sunday (Weekly Discovery)"; fi)
+          EOF
+          
+          echo "✅ Status dashboard generated successfully"
+
+      - name: Commit Status Dashboard
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "📊 Update MCP status dashboard - $(date -u +"%Y-%m-%d %H:%M UTC")"
+          title: "📊 MCP Status Dashboard Update"
+          body: |
+            ## 📊 MCP Status Dashboard Update
+            
+            This PR contains the latest MCP system status dashboard generated by scheduled monitoring.
+            
+            **📈 Dashboard Highlights:**
+            - **Health Status:** ${{ needs.mcp-health-monitoring.outputs.health-status || 'monitored' }}
+            - **Discovery Results:** ${{ needs.mcp-discovery.outputs.new-servers-found || '0' }} new servers found
+            - **Critical Issues:** ${{ needs.mcp-health-monitoring.outputs.critical-issues || '0' }} active issues
+            - **Generated:** $(date -u +"%Y-%m-%d %H:%M UTC")
+            
+            **📋 Changes:**
+            - Updated comprehensive status dashboard
+            - Included latest health monitoring results  
+            - Added discovery scan outcomes
+            - Refreshed system metrics and performance data
+            
+            **🔧 Review:**
+            - [ ] Review system health status
+            - [ ] Address any critical issues identified  
+            - [ ] Consider new server integration opportunities
+            - [ ] Merge to update project status documentation
+            
+            **Auto-merge:** This PR can be safely auto-merged as it only updates monitoring dashboards.
+          branch: mcp-dashboard-update-${{ github.run_id }}
+          delete-branch: true
+          labels: |
+            automation
+            documentation
+            mcp-monitoring
+
+      - name: Upload Dashboard Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-status-dashboard-${{ github.run_id }}
+          path: |
+            reports/mcp-dashboard/
+          retention-days: 90

@@ -1,0 +1,213 @@
+{
+  "timestamp": "2025-08-09T05:11:51.846Z",
+  "summary": {
+    "total_tests": 40,
+    "passed": 31,
+    "failed": 0,
+    "warnings": 0,
+    "score": 100
+  },
+  "tests": [
+    {
+      "message": "🎵 Starting MCP Workflow Integration Tests for EchoTune AI...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.835Z"
+    },
+    {
+      "message": "Testing MCP workflow files...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.835Z"
+    },
+    {
+      "message": "Workflow mcp-validation-gateway.yml exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.836Z"
+    },
+    {
+      "message": "Workflow mcp-validation-gateway.yml includes MCP manager integration",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-validation-gateway.yml has proper triggers",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-scheduled-discovery.yml exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-scheduled-discovery.yml includes MCP manager integration",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-scheduled-discovery.yml has proper triggers",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-validation.yml exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.837Z"
+    },
+    {
+      "message": "Workflow mcp-validation.yml includes MCP manager integration",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.838Z"
+    },
+    {
+      "message": "Workflow mcp-validation.yml has proper triggers",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.838Z"
+    },
+    {
+      "message": "Testing MCP Manager script...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.838Z"
+    },
+    {
+      "message": "MCP Manager script exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.838Z"
+    },
+    {
+      "message": "MCP Manager exports readServers",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.839Z"
+    },
+    {
+      "message": "MCP Manager exports install",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.839Z"
+    },
+    {
+      "message": "MCP Manager exports health",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.840Z"
+    },
+    {
+      "message": "MCP Manager exports test",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.840Z"
+    },
+    {
+      "message": "MCP Manager exports report",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.840Z"
+    },
+    {
+      "message": "MCP Manager can read server configuration (3 servers)",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.841Z"
+    },
+    {
+      "message": "Testing MCP Status Reporter...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.841Z"
+    },
+    {
+      "message": "MCP Status Reporter script exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.841Z"
+    },
+    {
+      "message": "MCP Status Reporter is properly exported",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "MCP Status Reporter can be instantiated",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "Testing package.json MCP scripts...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "Package script mcp:install configured",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "Package script mcp:health configured",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "Package script mcp:test configured",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.842Z"
+    },
+    {
+      "message": "Package script mcp:report configured",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "Package script mcp:validate configured",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "Found 25 MCP-related scripts",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "Testing MCP server configuration...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "MCP server package.json exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "MCP servers configured: mcpHealth, mcpOrchestrator, mcpWorkflow",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "Testing MCP documentation...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.843Z"
+    },
+    {
+      "message": "Documentation docs/MCP_VALIDATION_WORKFLOWS.md exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.844Z"
+    },
+    {
+      "message": "Documentation docs/MCP_VALIDATION_WORKFLOWS.md includes MCP references",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.844Z"
+    },
+    {
+      "message": "Documentation README.md exists",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.844Z"
+    },
+    {
+      "message": "Documentation README.md includes MCP references",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.845Z"
+    },
+    {
+      "message": "Testing report directory structure...",
+      "type": "info",
+      "timestamp": "2025-08-09T05:11:51.845Z"
+    },
+    {
+      "message": "Report directories created successfully",
+      "type": "pass",
+      "timestamp": "2025-08-09T05:11:51.845Z"
+    }
+  ],
+  "status": "passed"
+}
