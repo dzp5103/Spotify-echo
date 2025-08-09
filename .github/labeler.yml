@@ -1,0 +1,197 @@
+# GitHub Labeler Configuration for EchoTune AI
+# Automatically applies labels based on file changes in pull requests
+
+# CI/CD and DevOps
+'ci/cd':
+  - '.github/workflows/**'
+  - '.github/scripts/**'
+  - 'scripts/hardened-ci-runner.js'
+  - 'scripts/performance-benchmark.js'
+  - 'scripts/coverage-validator.js'
+  - 'scripts/security-scanner.js'
+  - 'scripts/changelog-generator.js'
+  - '**/Dockerfile'
+  - 'docker-compose.yml'
+  - 'nginx/**'
+  - 'deploy/**'
+
+# MCP Integration
+'mcp':
+  - 'mcp/**'
+  - 'mcp-server/**'
+  - 'mcp-servers/**'
+  - '**/mcp-*.js'
+  - '**/mcp-*.ts'
+  - '**/mcp-*.py'
+  - '**/enhanced-mcp-orchestrator.js'
+  - '**/coordination-server.js'
+  - '**/workflow-manager.js'
+
+# Documentation
+'documentation':
+  - 'docs/**'
+  - '*.md'
+  - 'README.md'
+  - 'CONTRIBUTING.md'
+  - 'DEPLOYMENT.md'
+  - 'ARCHITECTURE.md'
+
+# Frontend
+'frontend':
+  - 'src/**'
+  - 'public/**'
+  - 'static/**'
+  - '**/*.html'
+  - '**/*.css'
+  - '**/*.js'
+  - '**/*.jsx'
+  - '**/*.ts'
+  - '**/*.tsx'
+  - '**/*.vue'
+
+# Backend
+'backend':
+  - 'server.js'
+  - 'index.js'
+  - 'server-*.js'
+  - 'api/**'
+  - 'routes/**'
+  - 'middleware/**'
+  - 'controllers/**'
+  - 'models/**'
+
+# Python/ML
+'machine-learning':
+  - 'scripts/**/*.py'
+  - 'ml_datasets/**'
+  - '**/recommendation*.py'
+  - '**/ml_*.py'
+  - '**/*.ipynb'
+  - 'requirements*.txt'
+
+# Database
+'database':
+  - 'databases/**'
+  - 'data/**'
+  - '**/migrations/**'
+  - '**/seeds/**'
+  - '**/schema/**'
+
+# Security
+'security':
+  - '.security-whitelist.yml'
+  - 'scripts/security-scanner.js'
+  - '**/*security*'
+  - '**/*auth*'
+  - '.env.example'
+  - '.env.production.example'
+
+# Testing
+'testing':
+  - 'tests/**'
+  - 'test/**'
+  - '__tests__/**'
+  - '**/*.test.js'
+  - '**/*.spec.js'
+  - '**/*.test.ts'
+  - '**/*.spec.ts'
+  - 'jest.config.js'
+  - 'vitest.config.js'
+  - 'vite.config.js'
+
+# Dependencies
+'dependencies':
+  - 'package.json'
+  - 'package-lock.json'
+  - 'yarn.lock'
+  - 'requirements.txt'
+  - 'Pipfile'
+  - 'Pipfile.lock'
+
+# Configuration
+'configuration':
+  - '.env*'
+  - '*.config.js'
+  - '*.config.ts'
+  - '.eslintrc*'
+  - '.prettierrc*'
+  - '.gitignore'
+  - '.dockerignore'
+  - 'nginx.conf*'
+
+# Performance
+'performance':
+  - 'scripts/performance-benchmark.js'
+  - 'reports/perf-*.json'
+  - '**/performance*'
+  - '**/benchmark*'
+
+# Reports & Analytics
+'reports':
+  - 'reports/**'
+  - '**/coverage/**'
+  - '**/metrics/**'
+  - '**/analytics/**'
+
+# Spotify Integration
+'spotify':
+  - '**/spotify*'
+  - '**/auth*'
+  - '**/oauth*'
+  - 'src/spotify/**'
+  - 'scripts/spotify*'
+
+# GitHub Specific
+'github':
+  - '.github/**'
+  - '**/*github*'
+
+# Enhancement Labels by Size
+'size/XS':
+  - any: ['**']
+  - all: 
+    - '!**/*.md'
+    - '!docs/**'
+  - count: 1..10
+
+'size/S':
+  - any: ['**']
+  - count: 11..50
+
+'size/M':
+  - any: ['**']
+  - count: 51..200
+
+'size/L':
+  - any: ['**']
+  - count: 201..500
+
+'size/XL':
+  - any: ['**']
+  - count: 501..1000
+
+'size/XXL':
+  - any: ['**']
+  - count: 1001..
+
+# Priority Labels
+'priority/high':
+  - '.github/workflows/**'
+  - 'server.js'
+  - 'index.js'
+  - 'package.json'
+  - 'requirements.txt'
+
+'priority/critical':
+  - '.env.example'
+  - '.env.production.example'
+  - 'deploy.sh'
+  - 'docker-compose.yml'
+  - 'nginx.conf'
+
+# Auto-approve for specific changes
+'auto-merge-ready':
+  - 'docs/**/*.md'
+  - 'README.md'
+  - '**/*.test.js'
+  - '**/*.spec.js'

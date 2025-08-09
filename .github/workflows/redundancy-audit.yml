@@ -1,34 +1,517 @@
-name: Redundancy Audit
+name: Code Redundancy & Quality Audit
+
 on:
+  push:
+    branches: [ main, develop ]
   pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '0 3 * * 2'  # Weekly on Tuesday at 3 AM UTC
   workflow_dispatch:
+    inputs:
+      scan_depth:
+        description: 'Scanning depth (quick, standard, thorough)'
+        required: false
+        default: 'standard'
+        type: choice
+        options:
+        - quick
+        - standard
+        - thorough
+      include_tests:
+        description: 'Include test files in redundancy analysis'
+        required: false
+        default: 'false'
+        type: boolean
+      threshold:
+        description: 'Minimum similarity threshold for detection (%)'
+        required: false
+        default: '80'
+        type: number
 
 permissions:
   contents: read
+  pull-requests: write
+  security-events: write
+
+concurrency:
+  group: redundancy-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SCAN_DEPTH: ${{ github.event.inputs.scan_depth || 'standard' }}
+  INCLUDE_TESTS: ${{ github.event.inputs.include_tests || 'false' }}
+  SIMILARITY_THRESHOLD: ${{ github.event.inputs.threshold || '80' }}
 
 jobs:
-  redundancy-audit:
+  redundancy-analysis:
+    name: Code Duplication Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    outputs:
+      duplication-score: ${{ steps.jscpd-analysis.outputs.duplication-score }}
+      duplicated-lines: ${{ steps.jscpd-analysis.outputs.duplicated-lines }}
+      total-lines: ${{ steps.jscpd-analysis.outputs.total-lines }}
+      duplication-percentage: ${{ steps.jscpd-analysis.outputs.duplication-percentage }}
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
-      - name: Install jscpd
-        run: npm i -g jscpd@4
-      - name: Run jscpd
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install analysis tools
         run: |
-          mkdir -p reports
-          jscpd --reporters markdown --output reports || true
-          if [ -f reports/jscpd-report.md ]; then
-            mv reports/jscpd-report.md reports/redundancy-audit.md
-          else
-            echo "# Redundancy Audit\n\nNo report generated." > reports/redundancy-audit.md
+          npm install -g jscpd@4.0.5
+          npm install -g cloc
+          npm install js-yaml
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Configure JSCPD scanning
+        run: |
+          cat > .jscpd.json << EOF
+          {
+            "threshold": ${{ env.SIMILARITY_THRESHOLD }},
+            "reporters": ["json", "markdown", "console"],
+            "output": "reports",
+            "gitignore": true,
+            "ignore": [
+              "node_modules/**",
+              "dist/**",
+              "build/**",
+              "coverage/**",
+              "*.min.js",
+              "*.bundle.js",
+              "package-lock.json",
+              ".git/**"
+            ],
+            "formats": ["javascript", "typescript", "python", "markdown", "yaml", "json"],
+            "minLines": 5,
+            "minTokens": 50,
+            "maxSize": "100kb"
+          }
+          EOF
+          
+          # Add test exclusions if not including tests
+          if [ "${{ env.INCLUDE_TESTS }}" = "false" ]; then
+            cat .jscpd.json | jq '.ignore += ["**/*.test.js", "**/*.spec.js", "**/*.test.ts", "**/*.spec.ts", "tests/**", "test/**", "__tests__/**", "testing_screenshots/**"]' > .jscpd.json.tmp
+            mv .jscpd.json.tmp .jscpd.json
           fi
-      - name: Upload artifact
+          
+          echo "✅ JSCPD configuration created"
+          cat .jscpd.json
+
+      - name: Run code line counting
+        run: |
+          echo "📊 Analyzing codebase statistics..."
+          cloc . --exclude-dir=node_modules,dist,build,coverage,reports,.git --json --out=reports/cloc-analysis.json
+          
+          # Extract total lines for reference
+          TOTAL_LINES=$(jq -r '.SUM.code // 0' reports/cloc-analysis.json)
+          echo "TOTAL_LINES=$TOTAL_LINES" >> $GITHUB_ENV
+          echo "📈 Total lines of code: $TOTAL_LINES"
+
+      - name: Run JSCPD duplication analysis
+        id: jscpd-analysis
+        continue-on-error: true
+        run: |
+          echo "🔍 Running code duplication analysis..."
+          
+          # Run JSCPD with appropriate verbosity based on scan depth
+          JSCPD_EXIT_CODE=0
+          case "${{ env.SCAN_DEPTH }}" in
+            "quick")
+              jscpd --config .jscpd.json --min-lines 10 --min-tokens 100 || JSCPD_EXIT_CODE=$?
+              ;;
+            "thorough")
+              jscpd --config .jscpd.json --min-lines 3 --min-tokens 30 || JSCPD_EXIT_CODE=$?
+              ;;
+            *)
+              jscpd --config .jscpd.json || JSCPD_EXIT_CODE=$?
+              ;;
+          esac
+          
+          echo "JSCPD exit code: $JSCPD_EXIT_CODE"
+          
+          # Process results even if JSCPD found duplicates (exit code 1)
+          if [ -f "reports/jscpd-report.json" ]; then
+            # Parse JSCPD results
+            DUPLICATED_LINES=$(jq -r '.statistics.total.duplicatedLines // 0' reports/jscpd-report.json)
+            TOTAL_DUPLICATED_FILES=$(jq -r '.statistics.total.duplicatedFiles // 0' reports/jscpd-report.json)
+            PERCENTAGE=$(jq -r '.statistics.total.percentage // 0' reports/jscpd-report.json)
+            
+            echo "duplicated-lines=$DUPLICATED_LINES" >> $GITHUB_OUTPUT
+            echo "total-lines=$TOTAL_LINES" >> $GITHUB_OUTPUT
+            echo "duplication-percentage=$PERCENTAGE" >> $GITHUB_OUTPUT
+            
+            # Calculate duplication score (higher is better, 0-100)
+            DUPLICATION_SCORE=$(echo "100 - $PERCENTAGE" | bc 2>/dev/null || echo "100")
+            echo "duplication-score=$DUPLICATION_SCORE" >> $GITHUB_OUTPUT
+            
+            echo "📊 Duplication Analysis Results:"
+            echo "  - Duplicated Lines: $DUPLICATED_LINES"
+            echo "  - Total Lines: $TOTAL_LINES"
+            echo "  - Duplication Percentage: $PERCENTAGE%"
+            echo "  - Duplication Score: $DUPLICATION_SCORE/100"
+            echo "  - Files with Duplicates: $TOTAL_DUPLICATED_FILES"
+          else
+            echo "⚠️ JSCPD analysis failed or no duplicates found"
+            echo "duplicated-lines=0" >> $GITHUB_OUTPUT
+            echo "total-lines=$TOTAL_LINES" >> $GITHUB_OUTPUT
+            echo "duplication-percentage=0" >> $GITHUB_OUTPUT
+            echo "duplication-score=100" >> $GITHUB_OUTPUT
+            
+            # Create minimal report
+            echo "{}" > reports/jscpd-report.json
+          fi
+
+      - name: Generate enhanced redundancy report
+        run: |
+          echo "📝 Generating comprehensive redundancy report..."
+          
+          cat > generate-report.js << 'EOF'
+          const fs = require('fs');
+          
+          try {
+            // Load analysis results
+            let jscpdData = {};
+            if (fs.existsSync('reports/jscpd-report.json')) {
+              jscpdData = JSON.parse(fs.readFileSync('reports/jscpd-report.json', 'utf8'));
+            }
+            
+            let clocData = {};
+            if (fs.existsSync('reports/cloc-analysis.json')) {
+              clocData = JSON.parse(fs.readFileSync('reports/cloc-analysis.json', 'utf8'));
+            }
+            
+            const stats = jscpdData.statistics || {};
+            const duplicates = jscpdData.duplicates || [];
+            
+            // Generate markdown report
+            const timestamp = new Date().toISOString();
+            const totalLines = process.env.TOTAL_LINES || 0;
+            const duplicatedLines = stats.total?.duplicatedLines || 0;
+            const percentage = stats.total?.percentage || 0;
+            const duplicatedFiles = stats.total?.duplicatedFiles || 0;
+            const scanDepth = process.env.SCAN_DEPTH || 'standard';
+            const includeTests = process.env.INCLUDE_TESTS || 'false';
+            const threshold = process.env.SIMILARITY_THRESHOLD || '80';
+            
+            let markdownReport = `# Code Redundancy & Quality Audit Report
+          
+          **Generated:** ${timestamp}  
+          **Repository:** ${process.env.GITHUB_REPOSITORY || 'unknown'}  
+          **Commit:** ${process.env.GITHUB_SHA || 'unknown'}  
+          **Branch:** ${process.env.GITHUB_REF_NAME || 'unknown'}  
+          
+          ## Configuration
+          
+          - **Scan Depth:** ${scanDepth}
+          - **Include Tests:** ${includeTests}
+          - **Similarity Threshold:** ${threshold}%
+          - **Minimum Lines:** ${scanDepth === 'quick' ? 10 : scanDepth === 'thorough' ? 3 : 5}
+          
+          ## Summary
+          
+          - **Total Lines of Code:** ${totalLines.toLocaleString()}
+          - **Duplicated Lines:** ${duplicatedLines.toLocaleString()}
+          - **Duplication Percentage:** ${percentage.toFixed(2)}%
+          - **Files with Duplicates:** ${duplicatedFiles}
+          - **Quality Score:** ${(100 - percentage).toFixed(1)}/100
+          
+          ## Quality Assessment
+          
+          `;
+          
+          if (percentage === 0) {
+            markdownReport += `✅ **EXCELLENT:** No code duplication detected!\n\n`;
+          } else if (percentage < 5) {
+            markdownReport += `✅ **GOOD:** Low code duplication (${percentage.toFixed(2)}%)\n\n`;
+          } else if (percentage < 15) {
+            markdownReport += `⚠️ **MODERATE:** Some code duplication detected (${percentage.toFixed(2)}%)\n\n`;
+          } else if (percentage < 25) {
+            markdownReport += `⚠️ **HIGH:** Significant code duplication (${percentage.toFixed(2)}%)\n\n`;
+          } else {
+            markdownReport += `❌ **CRITICAL:** Excessive code duplication (${percentage.toFixed(2)}%)\n\n`;
+          }
+          
+          // Add language breakdown from CLOC
+          if (clocData.SUM) {
+            markdownReport += `## Codebase Composition\n\n`;
+            markdownReport += `| Language | Files | Lines | Blank | Comments | Code |\n`;
+            markdownReport += `|----------|-------|-------|--------|----------|------|\n`;
+            
+            Object.entries(clocData).forEach(([lang, data]) => {
+              if (lang !== 'SUM' && lang !== 'header' && typeof data === 'object') {
+                markdownReport += `| ${lang} | ${data.nFiles || 0} | ${(data.blank + data.comment + data.code).toLocaleString() || 0} | ${data.blank || 0} | ${data.comment || 0} | ${data.code || 0} |\n`;
+              }
+            });
+            
+            markdownReport += `| **Total** | **${clocData.SUM.nFiles || 0}** | **${(clocData.SUM.blank + clocData.SUM.comment + clocData.SUM.code).toLocaleString() || 0}** | **${clocData.SUM.blank || 0}** | **${clocData.SUM.comment || 0}** | **${clocData.SUM.code || 0}** |\n\n`;
+          }
+          
+          // Add duplicate details if any
+          if (duplicates.length > 0) {
+            markdownReport += `## Duplicate Code Instances\n\n`;
+            markdownReport += `Found ${duplicates.length} instances of duplicate code:\n\n`;
+            
+            duplicates.slice(0, 10).forEach((dup, index) => {  // Limit to first 10 for readability
+              markdownReport += `### Duplicate ${index + 1}\n\n`;
+              markdownReport += `- **Lines:** ${dup.lines || 0}\n`;
+              markdownReport += `- **Tokens:** ${dup.tokens || 0}\n`;
+              markdownReport += `- **Files:**\n`;
+              
+              (dup.duplicationA ? [dup.duplicationA, dup.duplicationB] : []).forEach(file => {
+                if (file) {
+                  markdownReport += `  - \`${file.sourceId}\` (lines ${file.start}-${file.end})\n`;
+                }
+              });
+              markdownReport += `\n`;
+            });
+            
+            if (duplicates.length > 10) {
+              markdownReport += `*... and ${duplicates.length - 10} more duplicate instances.*\n\n`;
+            }
+          }
+          
+          // Add recommendations
+          markdownReport += `## Recommendations\n\n`;
+          
+          if (percentage === 0) {
+            markdownReport += `- ✅ Code quality is excellent with no duplication detected\n`;
+            markdownReport += `- 💡 Consider running periodic audits to maintain this quality\n`;
+          } else if (percentage < 5) {
+            markdownReport += `- ✅ Code duplication is at acceptable levels\n`;
+            markdownReport += `- 💡 Monitor growth in future commits\n`;
+          } else {
+            markdownReport += `- 🔧 Consider refactoring duplicate code into reusable functions or modules\n`;
+            markdownReport += `- 📋 Review the duplicate instances above for consolidation opportunities\n`;
+            markdownReport += `- 🎯 Target: Reduce duplication below 5% for optimal maintainability\n`;
+          }
+          
+          markdownReport += `\n## Files Analyzed\n\n`;
+          markdownReport += `This audit analyzed ${clocData.SUM?.nFiles || 'unknown'} files across multiple languages, excluding:\n\n`;
+          markdownReport += `- Dependencies (node_modules/)\n`;
+          markdownReport += `- Build artifacts (dist/, build/)\n`;
+          markdownReport += `- Generated files (*.min.js, *.bundle.js)\n`;
+          markdownReport += `- Version control files (.git/)\n`;
+          
+          if (includeTests === 'false') {
+            markdownReport += `- Test files (*.test.*, *.spec.*, tests/, test/, __tests__/)\n`;
+          }
+          
+          markdownReport += `\n---\n*Generated by Code Redundancy & Quality Audit v5.0*\n`;
+          
+          // Write the report
+          fs.writeFileSync('reports/redundancy-audit.md', markdownReport);
+          
+          // Create JSON summary
+          const jsonSummary = {
+            timestamp: timestamp,
+            configuration: {
+              scan_depth: scanDepth,
+              include_tests: includeTests === 'true',
+              similarity_threshold: parseInt(threshold)
+            },
+            metrics: {
+              total_lines: parseInt(totalLines),
+              duplicated_lines: parseInt(duplicatedLines),
+              duplication_percentage: parseFloat(percentage.toFixed(2)),
+              duplicated_files: parseInt(duplicatedFiles),
+              quality_score: parseFloat((100 - percentage).toFixed(1)),
+              duplicate_instances: duplicates.length
+            },
+            quality_level: percentage === 0 ? 'excellent' : 
+                          percentage < 5 ? 'good' : 
+                          percentage < 15 ? 'moderate' : 
+                          percentage < 25 ? 'high' : 'critical',
+            recommendations: percentage === 0 ? ['maintain_quality'] : 
+                           percentage < 5 ? ['monitor_growth'] : 
+                           ['refactor_duplicates', 'improve_architecture']
+          };
+          
+          fs.writeFileSync('reports/redundancy-summary.json', JSON.stringify(jsonSummary, null, 2));
+          
+          console.log('✅ Enhanced redundancy report generated');
+          console.log(`📊 Quality Score: ${(100 - percentage).toFixed(1)}/100`);
+          console.log(`🔍 Duplication: ${percentage.toFixed(2)}% (${duplicatedLines}/${totalLines} lines)`);
+          
+          } catch (error) {
+            console.error('❌ Failed to generate report:', error);
+            
+            // Create fallback report
+            const fallbackReport = `# Code Redundancy Audit Report\n\n❌ **Error:** Failed to generate detailed report\n\n**Timestamp:** ${new Date().toISOString()}\n**Error:** ${error.message}\n\n*Please check the workflow logs for more details.*\n`;
+            fs.writeFileSync('reports/redundancy-audit.md', fallbackReport);
+          }
+          EOF
+          
+          node generate-report.js
+
+      - name: Upload redundancy audit artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: redundancy-audit
-          path: reports/redundancy-audit.md
+          name: redundancy-audit-${{ github.run_number }}
+          path: |
+            reports/redundancy-audit.md
+            reports/redundancy-summary.json
+            reports/jscpd-report.json
+            reports/jscpd-report.md
+            reports/cloc-analysis.json
+          retention-days: 30
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const duplicationScore = '${{ steps.jscpd-analysis.outputs.duplication-score }}';
+            const duplicationPercentage = '${{ steps.jscpd-analysis.outputs.duplication-percentage }}';
+            const duplicatedLines = '${{ steps.jscpd-analysis.outputs.duplicated-lines }}';
+            const totalLines = '${{ steps.jscpd-analysis.outputs.total-lines }}';
+            
+            let qualityIcon = '✅';
+            let qualityLevel = 'Excellent';
+            
+            if (duplicationPercentage > 25) {
+              qualityIcon = '❌';
+              qualityLevel = 'Critical';
+            } else if (duplicationPercentage > 15) {
+              qualityIcon = '⚠️';
+              qualityLevel = 'High';
+            } else if (duplicationPercentage > 5) {
+              qualityIcon = '⚠️';
+              qualityLevel = 'Moderate';
+            } else if (duplicationPercentage > 0) {
+              qualityIcon = '✅';
+              qualityLevel = 'Good';
+            }
+            
+            const comment = `## ${qualityIcon} Code Redundancy Audit Results
+            
+            **Quality Level:** ${qualityLevel}
+            
+            | Metric | Value |
+            |--------|-------|
+            | Quality Score | ${duplicationScore}/100 |
+            | Code Duplication | ${duplicationPercentage}% |
+            | Duplicated Lines | ${duplicatedLines.toLocaleString()} / ${totalLines.toLocaleString()} |
+            
+            ${duplicationPercentage > 15 ? '⚠️ **Action Required:** High code duplication detected. Consider refactoring duplicate code.' : 
+              duplicationPercentage > 5 ? '💡 **Suggestion:** Some code duplication detected. Monitor for future improvements.' : 
+              '✅ **Great!** Code duplication is at acceptable levels.'}
+            
+            📊 **Detailed Report:** Check the workflow artifacts for comprehensive analysis.
+            
+            ---
+            *Generated by Code Redundancy & Quality Audit*`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  quality-gate:
+    name: Quality Gate Assessment
+    needs: redundancy-analysis
+    runs-on: ubuntu-latest
+    if: always() && needs.redundancy-analysis.result != 'cancelled'
+    
+    steps:
+      - name: Evaluate quality gate
+        run: |
+          DUPLICATION_SCORE="${{ needs.redundancy-analysis.outputs.duplication-score }}"
+          DUPLICATION_PERCENTAGE="${{ needs.redundancy-analysis.outputs.duplication-percentage }}"
+          
+          echo "🔍 Quality Gate Evaluation:"
+          echo "Duplication Score: $DUPLICATION_SCORE/100"
+          echo "Duplication Percentage: $DUPLICATION_PERCENTAGE%"
+          
+          # Set quality gate thresholds
+          QUALITY_GATE_THRESHOLD=80
+          CRITICAL_THRESHOLD=25
+          
+          if (( $(echo "$DUPLICATION_PERCENTAGE > $CRITICAL_THRESHOLD" | bc -l) )); then
+            echo "❌ QUALITY GATE: FAILED - Critical duplication level ($DUPLICATION_PERCENTAGE% > $CRITICAL_THRESHOLD%)"
+            echo "::error title=Quality Gate Failed::Critical code duplication detected ($DUPLICATION_PERCENTAGE%). Immediate refactoring required."
+            exit 1
+          elif (( $(echo "$DUPLICATION_SCORE < $QUALITY_GATE_THRESHOLD" | bc -l) )); then
+            echo "⚠️ QUALITY GATE: WARNING - Quality score below threshold ($DUPLICATION_SCORE < $QUALITY_GATE_THRESHOLD)"
+            echo "::warning title=Quality Gate Warning::Quality score $DUPLICATION_SCORE/100 is below recommended threshold. Consider code improvements."
+          else
+            echo "✅ QUALITY GATE: PASSED - Acceptable code quality ($DUPLICATION_SCORE/100)"
+          fi
+          
+          echo "quality-gate-status=passed" >> $GITHUB_ENV
+
+      - name: Generate quality summary
+        run: |
+          cat > quality-summary.json << EOF
+          {
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "quality_gate": {
+              "status": "${{ env.quality-gate-status || 'passed' }}",
+              "duplication_score": ${{ needs.redundancy-analysis.outputs.duplication-score }},
+              "duplication_percentage": ${{ needs.redundancy-analysis.outputs.duplication-percentage }},
+              "threshold": 80
+            },
+            "workflow_run": "${{ github.run_id }}",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+          
+          echo "✅ Quality summary generated"
+
+advanced-analysis:
+  name: Advanced Code Analysis
+  needs: redundancy-analysis
+  runs-on: ubuntu-latest
+  if: github.event.inputs.scan_depth == 'thorough' || github.event.schedule
+  timeout-minutes: 30
+  
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install analysis tools
+      run: |
+        pip install radon complexity-analyzer pyflakes
+        npm install -g eslint jshint
+        
+    - name: Run complexity analysis
+      continue-on-error: true
+      run: |
+        mkdir -p reports/advanced
+        
+        echo "🧮 Running complexity analysis..."
+        
+        # Python complexity analysis
+        if find . -name "*.py" -not -path "./node_modules/*" -not -path "./.git/*" | head -1 | grep -q .; then
+          radon cc . --json --exclude="node_modules/*,.git/*,dist/*,build/*" > reports/advanced/python-complexity.json 2>/dev/null || echo "{}" > reports/advanced/python-complexity.json
+          radon mi . --json --exclude="node_modules/*,.git/*,dist/*,build/*" > reports/advanced/python-maintainability.json 2>/dev/null || echo "{}" > reports/advanced/python-maintainability.json
+        fi
+        
+        # JavaScript/TypeScript analysis would go here
+        echo "✅ Advanced analysis completed"
+        
+    - name: Upload advanced analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: advanced-analysis-${{ github.run_number }}
+        path: reports/advanced/
+        retention-days: 14

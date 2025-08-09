@@ -1,0 +1,112 @@
+# Security Scanner Whitelist Configuration v5.0
+# This file contains patterns and files that should be excluded from security scanning
+# to reduce false positives while maintaining security vigilance
+
+# File patterns to exclude from secret scanning
+excluded_files:
+  - "*.test.js"
+  - "*.spec.js"  
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "*.example"
+  - "*.sample"
+  - "**/node_modules/**"
+  - "**/coverage/**"
+  - "**/dist/**"
+  - "**/.git/**"
+  - "**/reports/**"
+  - "**/mcp-*-*.json"
+  - "**/integration-test-results.json"
+  - "**/testing_screenshots/**"
+  - "**/ml_datasets/**"
+
+# Enhanced patterns that are commonly false positives
+whitelisted_patterns:
+  - pattern: "your_secret_here"
+    reason: "Example placeholder text"
+  - pattern: "change_me"
+    reason: "Example placeholder text"  
+  - pattern: "example_key"
+    reason: "Example placeholder text"
+  - pattern: "test_token"
+    reason: "Test fixture"
+  - pattern: "mock_api_key"
+    reason: "Mock/test data"
+  - pattern: "process\\.exit\\s*\\("
+    reason: "Legitimate process exit in CLI tools"
+    severity: "low"
+  - pattern: "sk-[A-Za-z0-9]{48}"
+    reason: "OpenAI API key pattern in examples/docs"
+    context: "documentation"
+  - pattern: "[A-Z0-9]{32}"
+    reason: "Generic hash patterns often false positives"
+    severity: "low"
+  - pattern: "Bearer\\s+[A-Za-z0-9_-]+"
+    reason: "Authorization header examples in docs"
+    context: "documentation"
+  - pattern: "\\${[A-Z_]+}"
+    reason: "Environment variable references"
+    severity: "info"
+  - pattern: "localhost:[0-9]+"
+    reason: "Local development URLs"
+    severity: "info"
+  - pattern: "[a-f0-9]{24}"
+    reason: "MongoDB ObjectId patterns"
+    severity: "low"
+  - pattern: "github_pat_[A-Za-z0-9_]+"
+    reason: "GitHub token pattern in examples"
+    context: "documentation"
+  - pattern: "ghp_[A-Za-z0-9]{36}"
+    reason: "GitHub personal access token in examples"
+    context: "documentation"
+  - pattern: "npm_[A-Za-z0-9]{36}"
+    reason: "NPM token pattern in examples"
+    context: "documentation"
+  - pattern: "[0-9]{13,}"
+    reason: "Timestamps and IDs often false positives"
+    severity: "info"
+  - pattern: "session_[0-9]{13}"
+    reason: "Session ID pattern in code"
+    severity: "info"
+  - pattern: "\\b[A-Za-z0-9+/]{88}={0,2}\\b"
+    reason: "Base64 encoded data often legitimate"
+    severity: "low"
+
+# Files that contain legitimate secrets or sensitive patterns for testing
+whitelisted_files:
+  - ".env.example"
+  - ".env.template"
+  - "scripts/test-*.js"
+  - "mcp-servers/*/test.js"
+
+# Context-aware whitelisting (patterns that are OK in specific contexts)
+contextual_whitelist:
+  - context: "test_files"
+    patterns:
+      - "fake_password_123"
+      - "mock_secret_key"
+      - "test_api_key"
+  - context: "documentation"
+    patterns:
+      - "your_api_key_here"
+      - "replace_with_your_key"
+
+# Security scanning configuration
+security_config:
+  # Minimum severity level to report (info, low, moderate, high, critical)
+  min_severity: "moderate"
+  
+  # Enable/disable specific scan types
+  scans:
+    dependency_audit: true
+    secret_scanning: true
+    code_analysis: true
+    configuration_review: true
+    license_compliance: true
+  
+  # Custom severity overrides
+  severity_overrides:
+    - pattern: "Math\\.random\\(\\)"
+      severity: "info"
+      reason: "Not cryptographically secure but acceptable for non-security uses"

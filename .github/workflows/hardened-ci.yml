@@ -1,0 +1,945 @@
+name: 🛡️ Hardened CI/CD Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - unit
+          - integration
+          - security
+          - performance
+      cache_strategy:
+        description: 'Cache strategy'
+        required: false
+        default: 'optimal'
+        type: choice
+        options:
+          - optimal
+          - aggressive
+          - minimal
+          - none
+
+env:
+  # Version Matrix Configuration
+  NODE_VERSIONS: '["18", "20", "22"]'
+  PYTHON_VERSIONS: '["3.9", "3.10", "3.11", "3.12"]'
+  OS_MATRIX: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+  
+  # Performance & Quality Gates
+  COVERAGE_THRESHOLD: 80
+  PERFORMANCE_THRESHOLD: 2000
+  SECURITY_SEVERITY_THRESHOLD: 'moderate'
+  MAX_LINT_WARNINGS: 10
+  
+  # Cache Configuration
+  CACHE_VERSION: v2
+  CACHE_RETENTION_DAYS: 30
+  
+  # MCP Configuration
+  MCP_TIMEOUT: 300
+  MCP_HEALTH_THRESHOLD: 7
+
+jobs:
+  # =========================================================================
+  # PREPARATION & VALIDATION
+  # =========================================================================
+  
+  preparation:
+    name: 🔍 Preparation & Matrix Strategy
+    runs-on: ubuntu-latest
+    outputs:
+      node-matrix: ${{ steps.matrix.outputs.node-matrix }}
+      python-matrix: ${{ steps.matrix.outputs.python-matrix }}
+      os-matrix: ${{ steps.matrix.outputs.os-matrix }}
+      test-strategy: ${{ steps.matrix.outputs.test-strategy }}
+      cache-strategy: ${{ steps.matrix.outputs.cache-strategy }}
+      should-deploy: ${{ steps.matrix.outputs.should-deploy }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine CI strategy
+        id: matrix
+        run: |
+          # Determine test strategy based on PR size and type
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TEST_STRATEGY="${{ github.event.inputs.test_suite }}"
+            CACHE_STRATEGY="${{ github.event.inputs.cache_strategy }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TEST_STRATEGY="full"
+            CACHE_STRATEGY="optimal"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Check PR size
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} | wc -l)
+            if [[ $CHANGED_FILES -gt 50 ]]; then
+              TEST_STRATEGY="full"
+            elif [[ $CHANGED_FILES -gt 20 ]]; then
+              TEST_STRATEGY="integration"
+            else
+              TEST_STRATEGY="unit"
+            fi
+            CACHE_STRATEGY="optimal"
+          else
+            TEST_STRATEGY="unit"
+            CACHE_STRATEGY="minimal"
+          fi
+          
+          # Matrix configuration based on strategy
+          case "$TEST_STRATEGY" in
+            "full")
+              NODE_MATRIX='["18", "20", "22"]'
+              PYTHON_MATRIX='["3.9", "3.11", "3.12"]'
+              OS_MATRIX='["ubuntu-latest", "macos-latest"]'
+              SHOULD_DEPLOY="true"
+              ;;
+            "integration")
+              NODE_MATRIX='["20", "22"]'
+              PYTHON_MATRIX='["3.11", "3.12"]'
+              OS_MATRIX='["ubuntu-latest"]'
+              SHOULD_DEPLOY="false"
+              ;;
+            *)
+              NODE_MATRIX='["20"]'
+              PYTHON_MATRIX='["3.11"]'
+              OS_MATRIX='["ubuntu-latest"]'
+              SHOULD_DEPLOY="false"
+              ;;
+          esac
+          
+          echo "node-matrix=$NODE_MATRIX" >> $GITHUB_OUTPUT
+          echo "python-matrix=$PYTHON_MATRIX" >> $GITHUB_OUTPUT
+          echo "os-matrix=$OS_MATRIX" >> $GITHUB_OUTPUT
+          echo "test-strategy=$TEST_STRATEGY" >> $GITHUB_OUTPUT
+          echo "cache-strategy=$CACHE_STRATEGY" >> $GITHUB_OUTPUT
+          echo "should-deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          
+          echo "🎯 CI Strategy: $TEST_STRATEGY"
+          echo "🗃️ Cache Strategy: $CACHE_STRATEGY"
+          echo "📱 Node Matrix: $NODE_MATRIX"
+          echo "🐍 Python Matrix: $PYTHON_MATRIX"
+          echo "💻 OS Matrix: $OS_MATRIX"
+
+  # =========================================================================
+  # DEPENDENCY MANAGEMENT & CACHING
+  # =========================================================================
+  
+  dependencies:
+    name: 📦 Dependencies & Caching
+    runs-on: ${{ matrix.os }}
+    needs: preparation
+    strategy:
+      matrix:
+        os: ${{ fromJSON(needs.preparation.outputs.os-matrix) }}
+        node-version: ${{ fromJSON(needs.preparation.outputs.node-matrix) }}
+        python-version: ${{ fromJSON(needs.preparation.outputs.python-matrix) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Configure advanced caching
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+            ~/.cache/pre-commit
+            node_modules
+            .venv
+            coverage
+            .nyc_output
+            dist
+            build
+          key: ${{ env.CACHE_VERSION }}-deps-${{ matrix.os }}-node${{ matrix.node-version }}-python${{ matrix.python-version }}-${{ hashFiles('**/package-lock.json', '**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-deps-${{ matrix.os }}-node${{ matrix.node-version }}-python${{ matrix.python-version }}-
+            ${{ env.CACHE_VERSION }}-deps-${{ matrix.os }}-node${{ matrix.node-version }}-
+            ${{ env.CACHE_VERSION }}-deps-${{ matrix.os }}-
+
+      - name: Install system dependencies
+        run: |
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y curl jq lsof netcat-openbsd build-essential
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew install jq netcat
+          fi
+
+      - name: Install Node.js dependencies
+        run: |
+          if [[ "${{ needs.preparation.outputs.cache-strategy }}" == "aggressive" ]]; then
+            npm ci --prefer-offline --no-audit
+          else
+            npm ci
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          if [ -f "requirements.txt" ]; then
+            pip install --disable-pip-version-check -r requirements.txt
+          fi
+          if [ -f "requirements-dev.txt" ]; then
+            pip install --disable-pip-version-check -r requirements-dev.txt
+          fi
+
+      - name: Cache validation
+        run: |
+          echo "✅ Dependencies installed successfully"
+          npm list --depth=0 || true
+          pip list || true
+
+      - name: Upload dependency cache info
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-info-${{ matrix.os }}-node${{ matrix.node-version }}-python${{ matrix.python-version }}
+          path: |
+            package-lock.json
+            requirements*.txt
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # CODE QUALITY & LINTING
+  # =========================================================================
+  
+  code-quality:
+    name: 🧹 Code Quality & Linting
+    runs-on: ubuntu-latest
+    needs: [preparation, dependencies]
+    outputs:
+      lint-score: ${{ steps.lint.outputs.score }}
+      quality-gate: ${{ steps.quality-gate.outputs.passed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Restore dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ env.CACHE_VERSION }}-deps-ubuntu-latest-node20-python3.11-${{ hashFiles('**/package-lock.json', '**/requirements*.txt') }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-deps-ubuntu-latest-node20-
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run ESLint with detailed reporting
+        id: lint
+        continue-on-error: true
+        run: |
+          echo "🧹 Running comprehensive linting..."
+          
+          # Create lint output directory
+          mkdir -p reports/lint
+          
+          # Run ESLint with JSON and stylish output
+          npx eslint . --ext .js,.ts,.jsx,.tsx \
+            --format json \
+            --output-file reports/lint/eslint-results.json \
+            --max-warnings ${{ env.MAX_LINT_WARNINGS }} || true
+          
+          # Generate human-readable report
+          npx eslint . --ext .js,.ts,.jsx,.tsx \
+            --format stylish | tee reports/lint/eslint-report.txt || true
+          
+          # Calculate lint score
+          ERRORS=$(jq '[.[].messages[] | select(.severity == 2)] | length' reports/lint/eslint-results.json 2>/dev/null || echo "0")
+          WARNINGS=$(jq '[.[].messages[] | select(.severity == 1)] | length' reports/lint/eslint-results.json 2>/dev/null || echo "0")
+          
+          # Calculate score (100 - errors*2 - warnings*1, minimum 0)
+          SCORE=$((100 - ERRORS * 2 - WARNINGS * 1))
+          SCORE=$((SCORE < 0 ? 0 : SCORE))
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "📊 Lint Results: Score=$SCORE, Errors=$ERRORS, Warnings=$WARNINGS"
+
+      - name: Run Prettier formatting check
+        continue-on-error: true
+        run: |
+          echo "💅 Checking code formatting..."
+          npx prettier --check . --write-errors-to-file reports/lint/prettier-errors.txt || true
+
+      - name: Quality gate evaluation
+        id: quality-gate
+        run: |
+          LINT_SCORE="${{ steps.lint.outputs.score }}"
+          
+          # Quality gate: Score >= 70
+          if [[ $LINT_SCORE -ge 70 ]]; then
+            echo "✅ Quality gate PASSED (Score: $LINT_SCORE/100)"
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Quality gate FAILED (Score: $LINT_SCORE/100, Required: 70+)"
+            echo "passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload lint reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-reports
+          path: reports/lint/
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # SECURITY SCANNING & VULNERABILITY ASSESSMENT
+  # =========================================================================
+  
+  security-scan:
+    name: 🔒 Security Scan & Vulnerability Assessment
+    runs-on: ubuntu-latest
+    needs: [preparation, dependencies]
+    outputs:
+      security-score: ${{ steps.security.outputs.score }}
+      vulnerabilities: ${{ steps.security.outputs.vulnerabilities }}
+      security-gate: ${{ steps.security-gate.outputs.passed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Comprehensive security audit
+        id: security
+        continue-on-error: true
+        run: |
+          echo "🔒 Running comprehensive security audit..."
+          mkdir -p reports/security
+          
+          # NPM audit with detailed JSON output
+          npm audit --audit-level=low --json > reports/security/npm-audit.json 2>/dev/null || true
+          
+          # Extract vulnerability counts
+          CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' reports/security/npm-audit.json)
+          HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' reports/security/npm-audit.json)
+          MODERATE=$(jq -r '.metadata.vulnerabilities.moderate // 0' reports/security/npm-audit.json)
+          LOW=$(jq -r '.metadata.vulnerabilities.low // 0' reports/security/npm-audit.json)
+          INFO=$(jq -r '.metadata.vulnerabilities.info // 0' reports/security/npm-audit.json)
+          
+          TOTAL_VULNS=$((CRITICAL + HIGH + MODERATE + LOW + INFO))
+          
+          # Calculate security score (100 - critical*10 - high*5 - moderate*2 - low*1)
+          SCORE=$((100 - CRITICAL * 10 - HIGH * 5 - MODERATE * 2 - LOW * 1))
+          SCORE=$((SCORE < 0 ? 0 : SCORE))
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "vulnerabilities=$TOTAL_VULNS" >> $GITHUB_OUTPUT
+          echo "🛡️ Security Score: $SCORE/100 (Critical: $CRITICAL, High: $HIGH, Moderate: $MODERATE, Low: $LOW)"
+
+      - name: Secret scanning
+        continue-on-error: true
+        run: |
+          echo "🔍 Scanning for exposed secrets..."
+          
+          # Basic secret patterns
+          SECRET_PATTERNS=(
+            "api[_-]?key\s*[:=]\s*['\"][^'\"]{20,}"
+            "secret\s*[:=]\s*['\"][^'\"]{20,}"
+            "password\s*[:=]\s*['\"][^'\"]{8,}"
+            "token\s*[:=]\s*['\"][^'\"]{20,}"
+            "[A-Za-z0-9]{32,}" # Generic long strings
+          )
+          
+          SECRETS_FOUND=0
+          for pattern in "${SECRET_PATTERNS[@]}"; do
+            if grep -r -E "$pattern" src/ scripts/ --exclude-dir=node_modules --exclude="*.min.js" | head -5; then
+              SECRETS_FOUND=$((SECRETS_FOUND + 1))
+            fi
+          done
+          
+          if [[ $SECRETS_FOUND -gt 0 ]]; then
+            echo "⚠️ Found $SECRETS_FOUND potential secret patterns"
+            echo "secrets-found=$SECRETS_FOUND" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No obvious secrets found in code"
+            echo "secrets-found=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Security gate evaluation
+        id: security-gate
+        run: |
+          SECURITY_SCORE="${{ steps.security.outputs.score }}"
+          VULNERABILITIES="${{ steps.security.outputs.vulnerabilities }}"
+          
+          # Security gate: Score >= 80 and vulnerabilities < 10
+          if [[ $SECURITY_SCORE -ge 80 && $VULNERABILITIES -lt 10 ]]; then
+            echo "✅ Security gate PASSED (Score: $SECURITY_SCORE/100, Vulnerabilities: $VULNERABILITIES)"
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Security gate REVIEW NEEDED (Score: $SECURITY_SCORE/100, Vulnerabilities: $VULNERABILITIES)"
+            echo "passed=warning" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: reports/security/
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # TESTING SUITE (MATRIX EXECUTION)
+  # =========================================================================
+  
+  test-suite:
+    name: 🧪 Test Suite (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    needs: [preparation, dependencies]
+    strategy:
+      matrix:
+        os: ${{ fromJSON(needs.preparation.outputs.os-matrix) }}
+        node-version: ${{ fromJSON(needs.preparation.outputs.node-matrix) }}
+      fail-fast: false
+    
+    outputs:
+      coverage-report: ${{ steps.coverage.outputs.coverage-report }}
+      test-results: ${{ steps.test.outputs.test-results }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Restore dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ env.CACHE_VERSION }}-deps-${{ matrix.os }}-node${{ matrix.node-version }}-python3.11-${{ hashFiles('**/package-lock.json', '**/requirements*.txt') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run test suite with coverage
+        id: test
+        continue-on-error: true
+        run: |
+          echo "🧪 Running test suite (${{ needs.preparation.outputs.test-strategy }})..."
+          mkdir -p reports/tests coverage
+          
+          # Determine test command based on strategy
+          case "${{ needs.preparation.outputs.test-strategy }}" in
+            "full")
+              TEST_CMD="npm run test -- --coverage --coverageReporters=json-summary --coverageReporters=lcov --coverageReporters=text"
+              ;;
+            "integration")
+              TEST_CMD="npm run test:integration -- --coverage"
+              ;;
+            "unit")
+              TEST_CMD="npm run test:unit -- --coverage"
+              ;;
+            "security")
+              TEST_CMD="npm run test:security"
+              ;;
+            *)
+              TEST_CMD="npm test"
+              ;;
+          esac
+          
+          # Run tests with timeout
+          timeout 600 $TEST_CMD 2>&1 | tee reports/tests/test-output.log || TEST_EXIT_CODE=$?
+          
+          echo "test-results=${TEST_EXIT_CODE:-0}" >> $GITHUB_OUTPUT
+          echo "🏁 Tests completed with exit code: ${TEST_EXIT_CODE:-0}"
+
+      - name: Process coverage results
+        id: coverage
+        if: always()
+        run: |
+          echo "📊 Processing coverage results..."
+          
+          # Check if coverage files exist
+          if [[ -f "coverage/coverage-summary.json" ]]; then
+            COVERAGE=$(jq -r '.total.lines.pct' coverage/coverage-summary.json 2>/dev/null || echo "0")
+            echo "Coverage: $COVERAGE%"
+            echo "coverage-report=$COVERAGE" >> $GITHUB_OUTPUT
+          else
+            echo "No coverage data found"
+            echo "coverage-report=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: |
+            reports/tests/
+            coverage/
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # MCP VALIDATION & INTEGRATION TESTING
+  # =========================================================================
+  
+  mcp-validation:
+    name: 🤖 MCP Validation & Integration Testing
+    runs-on: ubuntu-latest
+    needs: [preparation, dependencies]
+    outputs:
+      mcp-health: ${{ steps.mcp.outputs.health-score }}
+      mcp-status: ${{ steps.mcp.outputs.status }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefer-offline
+          if [ -f "requirements.txt" ]; then
+            pip install --disable-pip-version-check -r requirements.txt
+          fi
+
+      - name: Install MCP dependencies
+        run: |
+          echo "📦 Installing MCP dependencies..."
+          node scripts/mcp-manager.js install
+
+      - name: Run comprehensive MCP validation
+        id: mcp
+        timeout-minutes: ${{ fromJSON(env.MCP_TIMEOUT) }}
+        run: |
+          echo "🤖 Running comprehensive MCP validation..."
+          mkdir -p reports/mcp
+          
+          # Run MCP validation with detailed logging
+          node scripts/mcp-manager.js validate 2>&1 | tee reports/mcp/mcp-validation.log
+          MCP_EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Extract health score if available
+          if [[ -f "mcp-validation-results.json" ]]; then
+            HEALTH_SCORE=$(jq -r '.components.health.results | map(select(.status == "healthy")) | length' mcp-validation-results.json 2>/dev/null || echo "0")
+            TOTAL_SERVERS=$(jq -r '.components.health.results | length' mcp-validation-results.json 2>/dev/null || echo "0")
+            
+            if [[ $TOTAL_SERVERS -gt 0 ]]; then
+              HEALTH_PERCENTAGE=$((HEALTH_SCORE * 100 / TOTAL_SERVERS))
+            else
+              HEALTH_PERCENTAGE=0
+            fi
+          else
+            HEALTH_SCORE=0
+            HEALTH_PERCENTAGE=0
+          fi
+          
+          echo "health-score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+          echo "status=$MCP_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          echo "🏥 MCP Health: $HEALTH_SCORE servers healthy ($HEALTH_PERCENTAGE%)"
+
+      - name: Upload MCP validation reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-validation-reports
+          path: |
+            reports/mcp/
+            mcp-*.json
+            mcp-*.log
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # PERFORMANCE BENCHMARKING & REGRESSION TESTING
+  # =========================================================================
+  
+  performance-testing:
+    name: ⚡ Performance Benchmarking
+    runs-on: ubuntu-latest
+    needs: [preparation, dependencies, test-suite]
+    if: contains(fromJSON('["full", "performance"]'), needs.preparation.outputs.test-strategy)
+    outputs:
+      performance-score: ${{ steps.benchmark.outputs.score }}
+      benchmark-results: ${{ steps.benchmark.outputs.results }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Run performance benchmarks
+        id: benchmark
+        continue-on-error: true
+        run: |
+          echo "⚡ Running performance benchmarks..."
+          mkdir -p reports/performance
+          
+          # Simple performance test (can be expanded)
+          START_TIME=$(date +%s%N)
+          
+          # Run basic application startup test
+          timeout 30 npm start > reports/performance/startup.log 2>&1 &
+          APP_PID=$!
+          
+          # Wait for app to start
+          sleep 10
+          
+          # Test basic endpoints if available
+          if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+            RESPONSE_TIME=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:3000/health)
+            RESPONSE_TIME_MS=$(echo "$RESPONSE_TIME * 1000" | bc 2>/dev/null || echo "0")
+          else
+            RESPONSE_TIME_MS=0
+          fi
+          
+          # Cleanup
+          kill $APP_PID 2>/dev/null || true
+          
+          END_TIME=$(date +%s%N)
+          STARTUP_TIME_MS=$(((END_TIME - START_TIME) / 1000000))
+          
+          # Calculate performance score
+          if [[ $STARTUP_TIME_MS -lt 5000 && $RESPONSE_TIME_MS -lt 1000 ]]; then
+            SCORE=100
+          elif [[ $STARTUP_TIME_MS -lt 10000 && $RESPONSE_TIME_MS -lt 2000 ]]; then
+            SCORE=80
+          elif [[ $STARTUP_TIME_MS -lt 20000 ]]; then
+            SCORE=60
+          else
+            SCORE=40
+          fi
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "results={\"startup_time_ms\": $STARTUP_TIME_MS, \"response_time_ms\": $RESPONSE_TIME_MS}" >> $GITHUB_OUTPUT
+          
+          echo "📈 Performance Results: Startup=${STARTUP_TIME_MS}ms, Response=${RESPONSE_TIME_MS}ms, Score=${SCORE}/100"
+
+      - name: Upload performance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-reports
+          path: reports/performance/
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+  # =========================================================================
+  # COMPREHENSIVE REPORTING & QUALITY GATES
+  # =========================================================================
+  
+  quality-gates:
+    name: 🎯 Quality Gates & Comprehensive Reporting
+    runs-on: ubuntu-latest
+    needs: [preparation, code-quality, security-scan, test-suite, mcp-validation, performance-testing]
+    if: always()
+    outputs:
+      overall-status: ${{ steps.evaluation.outputs.overall-status }}
+      gate-passed: ${{ steps.evaluation.outputs.gate-passed }}
+      quality-score: ${{ steps.evaluation.outputs.quality-score }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports/
+          merge-multiple: true
+
+      - name: Comprehensive quality evaluation
+        id: evaluation
+        run: |
+          echo "🎯 Performing comprehensive quality evaluation..."
+          
+          # Collect metrics from all stages
+          LINT_SCORE="${{ needs.code-quality.outputs.lint-score || '0' }}"
+          SECURITY_SCORE="${{ needs.security-scan.outputs.security-score || '0' }}"
+          MCP_HEALTH="${{ needs.mcp-validation.outputs.mcp-health || '0' }}"
+          PERFORMANCE_SCORE="${{ needs.performance-testing.outputs.performance-score || '0' }}"
+          VULNERABILITIES="${{ needs.security-scan.outputs.vulnerabilities || '999' }}"
+          
+          # Test results matrix evaluation
+          TEST_PASSED=true
+          if [[ "${{ needs.test-suite.result }}" != "success" ]]; then
+            TEST_PASSED=false
+          fi
+          
+          # Calculate weighted quality score
+          # Weights: Code Quality 25%, Security 30%, Tests 25%, MCP 10%, Performance 10%
+          QUALITY_SCORE=$(( (LINT_SCORE * 25 + SECURITY_SCORE * 30 + (TEST_PASSED ? 100 : 0) * 25 + MCP_HEALTH * 5 + PERFORMANCE_SCORE * 10) / 100 ))
+          
+          # Quality gates evaluation
+          GATES_PASSED="true"
+          GATE_DETAILS=""
+          
+          # Gate 1: Code Quality >= 70
+          if [[ $LINT_SCORE -lt 70 ]]; then
+            GATES_PASSED="false"
+            GATE_DETAILS+="❌ Code Quality: $LINT_SCORE/100 (Required: 70+)\n"
+          else
+            GATE_DETAILS+="✅ Code Quality: $LINT_SCORE/100\n"
+          fi
+          
+          # Gate 2: Security Score >= 80
+          if [[ $SECURITY_SCORE -lt 80 ]]; then
+            GATES_PASSED="false"
+            GATE_DETAILS+="❌ Security Score: $SECURITY_SCORE/100 (Required: 80+)\n"
+          else
+            GATE_DETAILS+="✅ Security Score: $SECURITY_SCORE/100\n"
+          fi
+          
+          # Gate 3: Tests must pass
+          if [[ "$TEST_PASSED" != "true" ]]; then
+            GATES_PASSED="false"
+            GATE_DETAILS+="❌ Tests: Failed\n"
+          else
+            GATE_DETAILS+="✅ Tests: Passed\n"
+          fi
+          
+          # Gate 4: MCP Health >= 7 servers (if applicable)
+          if [[ $MCP_HEALTH -lt ${{ env.MCP_HEALTH_THRESHOLD }} ]]; then
+            GATE_DETAILS+="⚠️ MCP Health: $MCP_HEALTH servers (Target: ${{ env.MCP_HEALTH_THRESHOLD }}+)\n"
+          else
+            GATE_DETAILS+="✅ MCP Health: $MCP_HEALTH servers healthy\n"
+          fi
+          
+          # Gate 5: Performance threshold
+          if [[ $PERFORMANCE_SCORE -lt 60 ]]; then
+            GATE_DETAILS+="⚠️ Performance: $PERFORMANCE_SCORE/100 (Target: 60+)\n"
+          else
+            GATE_DETAILS+="✅ Performance: $PERFORMANCE_SCORE/100\n"
+          fi
+          
+          # Overall status determination
+          if [[ "$GATES_PASSED" == "true" && $QUALITY_SCORE -ge 80 ]]; then
+            OVERALL_STATUS="passed"
+          elif [[ $QUALITY_SCORE -ge 70 ]]; then
+            OVERALL_STATUS="warning"
+          else
+            OVERALL_STATUS="failed"
+          fi
+          
+          # Output results
+          echo "overall-status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+          echo "gate-passed=$GATES_PASSED" >> $GITHUB_OUTPUT
+          echo "quality-score=$QUALITY_SCORE" >> $GITHUB_OUTPUT
+          
+          echo "🏆 Overall Quality Score: $QUALITY_SCORE/100"
+          echo "🎯 Quality Gates: $([ "$GATES_PASSED" == "true" ] && echo "PASSED" || echo "REVIEW NEEDED")"
+          echo "📊 Overall Status: $OVERALL_STATUS"
+          
+          # Create comprehensive report
+          cat > comprehensive-report.md << 'EOF'
+          # 🛡️ Hardened CI/CD Pipeline Report
+          
+          **Generated**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+          **Strategy**: ${{ needs.preparation.outputs.test-strategy }}  
+          **Overall Score**: $QUALITY_SCORE/100  
+          **Status**: $OVERALL_STATUS
+          
+          ## 📊 Quality Gates Summary
+          
+          $GATE_DETAILS
+          
+          ## 🔍 Detailed Metrics
+          
+          | Component | Score | Status | Details |
+          |-----------|-------|--------|---------|
+          | 🧹 Code Quality | $LINT_SCORE/100 | $([ $LINT_SCORE -ge 70 ] && echo "✅ PASS" || echo "❌ FAIL") | ESLint analysis |
+          | 🔒 Security | $SECURITY_SCORE/100 | $([ $SECURITY_SCORE -ge 80 ] && echo "✅ PASS" || echo "⚠️ REVIEW") | $VULNERABILITIES vulnerabilities found |
+          | 🧪 Tests | $([ "$TEST_PASSED" == "true" ] && echo "✅ PASS" || echo "❌ FAIL") | $([ "$TEST_PASSED" == "true" ] && echo "✅ PASS" || echo "❌ FAIL") | Matrix testing results |
+          | 🤖 MCP Health | $MCP_HEALTH servers | $([ $MCP_HEALTH -ge 7 ] && echo "✅ HEALTHY" || echo "⚠️ CHECK") | Server health validation |
+          | ⚡ Performance | $PERFORMANCE_SCORE/100 | $([ $PERFORMANCE_SCORE -ge 60 ] && echo "✅ GOOD" || echo "⚠️ SLOW") | Benchmark results |
+          
+          ## 🎯 Quality Gate Status: $([ "$GATES_PASSED" == "true" ] && echo "✅ PASSED" || echo "❌ REVIEW NEEDED")
+          
+          EOF
+          
+          echo -e "$GATE_DETAILS" >> comprehensive-report.md
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprehensive-quality-report
+          path: comprehensive-report.md
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              const reportContent = fs.readFileSync('comprehensive-report.md', 'utf8');
+              const qualityScore = '${{ steps.evaluation.outputs.quality-score }}';
+              const overallStatus = '${{ steps.evaluation.outputs.overall-status }}';
+              
+              const statusEmoji = {
+                'passed': '✅',
+                'warning': '⚠️',
+                'failed': '❌'
+              };
+              
+              const commentBody = `## ${statusEmoji[overallStatus]} Hardened CI/CD Pipeline Results
+            
+            **Quality Score**: ${qualityScore}/100  
+            **Overall Status**: ${overallStatus.toUpperCase()}
+            
+            ${reportContent}
+            
+            ---
+            *🤖 Automated by Hardened CI/CD Pipeline*`;
+              
+              // Find existing comment and update or create new
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number
+              });
+              
+              const existingComment = comments.data.find(comment => 
+                comment.user.login === 'github-actions[bot]' && 
+                comment.body.includes('Hardened CI/CD Pipeline Results')
+              );
+              
+              if (existingComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: commentBody
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: commentBody
+                });
+              }
+            } catch (error) {
+              console.log('Could not post comment:', error.message);
+            }
+
+  # =========================================================================
+  # ARTIFACT COLLECTION & RETENTION
+  # =========================================================================
+  
+  artifact-collection:
+    name: 📦 Artifact Collection & Retention
+    runs-on: ubuntu-latest
+    needs: [quality-gates]
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: collected-artifacts/
+
+      - name: Organize artifacts
+        run: |
+          echo "📦 Organizing artifacts for retention..."
+          
+          # Create organized structure
+          mkdir -p final-artifacts/{reports,coverage,security,performance,logs}
+          
+          # Organize by type
+          find collected-artifacts/ -name "*.json" -o -name "*.xml" -o -name "*.html" | head -20 | while read file; do
+            cp "$file" final-artifacts/reports/ 2>/dev/null || true
+          done
+          
+          find collected-artifacts/ -name "coverage*" -type f | head -10 | while read file; do
+            cp "$file" final-artifacts/coverage/ 2>/dev/null || true
+          done
+          
+          find collected-artifacts/ -name "*security*" -o -name "*audit*" | head -10 | while read file; do
+            cp "$file" final-artifacts/security/ 2>/dev/null || true
+          done
+          
+          find collected-artifacts/ -name "*performance*" -o -name "*benchmark*" | head -10 | while read file; do
+            cp "$file" final-artifacts/performance/ 2>/dev/null || true
+          done
+          
+          find collected-artifacts/ -name "*.log" | head -20 | while read file; do
+            cp "$file" final-artifacts/logs/ 2>/dev/null || true
+          done
+          
+          # Create summary
+          echo "📋 Artifact Summary" > final-artifacts/SUMMARY.md
+          echo "Generated: $(date -u)" >> final-artifacts/SUMMARY.md
+          echo "Quality Score: ${{ needs.quality-gates.outputs.quality-score }}/100" >> final-artifacts/SUMMARY.md
+          echo "Status: ${{ needs.quality-gates.outputs.overall-status }}" >> final-artifacts/SUMMARY.md
+          
+          ls -la final-artifacts/
+
+      - name: Upload final artifact collection
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardened-ci-artifacts-final
+          path: final-artifacts/
+          retention-days: ${{ env.CACHE_RETENTION_DAYS }}

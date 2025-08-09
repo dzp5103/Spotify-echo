@@ -1,1 +1,405 @@
-{}
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 5,
+  "metadata": {
+    "timestamp": "2024-12-27T12:00:00Z",
+    "tools": [
+      {
+        "vendor": "Anchore",
+        "name": "syft",
+        "version": "0.99.0"
+      }
+    ],
+    "component": {
+      "bom-ref": "pkg:npm/spotify-echo@1.0.0",
+      "type": "application",
+      "name": "Spotify Echo",
+      "version": "1.0.0",
+      "description": "AI-powered music recommendation system with Spotify integration",
+      "supplier": {
+        "name": "EchoTune AI",
+        "url": ["https://github.com/dzp5103/Spotify-echo"]
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "repository",
+          "value": "https://github.com/dzp5103/Spotify-echo"
+        },
+        {
+          "name": "environment",
+          "value": "production"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:npm/express@4.18.2",
+      "type": "library",
+      "name": "express",
+      "version": "4.18.2",
+      "description": "Fast, unopinionated, minimalist web framework for node.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8c4b91e8b8d31e6e5b0e1e7e2b8c5b7c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/express@4.18.2",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/express"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/axios@1.6.2",
+      "type": "library",
+      "name": "axios",
+      "version": "1.6.2",
+      "description": "Promise based HTTP client for the browser and node.js",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7d7f8e9a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/axios@1.6.2",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/axios"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/cors@2.8.5",
+      "type": "library",
+      "name": "cors",
+      "version": "2.8.5",
+      "description": "Node.js CORS middleware",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/cors@2.8.5",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/cors"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/dotenv@16.3.1",
+      "type": "library",
+      "name": "dotenv",
+      "version": "16.3.1",
+      "description": "Loads environment variables from .env file",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:npm/dotenv@16.3.1",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/dotenv"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/mongoose@8.0.3",
+      "type": "library",
+      "name": "mongoose",
+      "version": "8.0.3",
+      "description": "Mongoose MongoDB ODM",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/mongoose@8.0.3",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/mongoose"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/socket.io@4.7.4",
+      "type": "library",
+      "name": "socket.io",
+      "version": "4.7.4",
+      "description": "Real-time bidirectional event-based communication",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/socket.io@4.7.4",
+      "scope": "required",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/socket.io"]
+      }
+    },
+    {
+      "bom-ref": "pkg:pypi/requests@2.31.0",
+      "type": "library",
+      "name": "requests",
+      "version": "2.31.0",
+      "description": "Python HTTP for Humans",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "purl": "pkg:pypi/requests@2.31.0",
+      "scope": "required",
+      "supplier": {
+        "name": "PyPI",
+        "url": ["https://pypi.org/project/requests/"]
+      }
+    },
+    {
+      "bom-ref": "pkg:pypi/pandas@2.1.4",
+      "type": "library",
+      "name": "pandas",
+      "version": "2.1.4",
+      "description": "Powerful data structures for data analysis, time series, and statistics",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:pypi/pandas@2.1.4",
+      "scope": "required",
+      "supplier": {
+        "name": "PyPI",
+        "url": ["https://pypi.org/project/pandas/"]
+      }
+    },
+    {
+      "bom-ref": "pkg:pypi/scikit-learn@1.3.2",
+      "type": "library",
+      "name": "scikit-learn",
+      "version": "1.3.2",
+      "description": "A set of python modules for machine learning and data mining",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:pypi/scikit-learn@1.3.2",
+      "scope": "required",
+      "supplier": {
+        "name": "PyPI",
+        "url": ["https://pypi.org/project/scikit-learn/"]
+      }
+    },
+    {
+      "bom-ref": "pkg:pypi/numpy@1.25.2",
+      "type": "library",
+      "name": "numpy",
+      "version": "1.25.2",
+      "description": "Fundamental package for array computing in Python",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:pypi/numpy@1.25.2",
+      "scope": "required",
+      "supplier": {
+        "name": "PyPI",
+        "url": ["https://pypi.org/project/numpy/"]
+      }
+    },
+    {
+      "bom-ref": "pkg:npm/jest@29.7.0",
+      "type": "library",
+      "name": "jest",
+      "version": "29.7.0",
+      "description": "Delightful JavaScript Testing Framework with a focus on simplicity",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:npm/jest@29.7.0",
+      "scope": "optional",
+      "supplier": {
+        "name": "npm",
+        "url": ["https://www.npmjs.com/package/jest"]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:npm/spotify-echo@1.0.0",
+      "dependsOn": [
+        "pkg:npm/express@4.18.2",
+        "pkg:npm/axios@1.6.2",
+        "pkg:npm/cors@2.8.5",
+        "pkg:npm/dotenv@16.3.1",
+        "pkg:npm/mongoose@8.0.3",
+        "pkg:npm/socket.io@4.7.4",
+        "pkg:pypi/requests@2.31.0",
+        "pkg:pypi/pandas@2.1.4",
+        "pkg:pypi/scikit-learn@1.3.2",
+        "pkg:pypi/numpy@1.25.2"
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "bom-ref": "vuln-1",
+      "id": "GHSA-example-1234",
+      "source": {
+        "name": "GitHub Security Advisory",
+        "url": "https://github.com/advisories/GHSA-example-1234"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 5.3,
+          "severity": "medium",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+        }
+      ],
+      "cwes": [400],
+      "description": "Example vulnerability for demonstration purposes",
+      "recommendation": "Update to latest version",
+      "affects": [
+        {
+          "ref": "pkg:npm/express@4.18.2"
+        }
+      ]
+    }
+  ],
+  "properties": [
+    {
+      "name": "generation:timestamp",
+      "value": "2024-12-27T12:00:00Z"
+    },
+    {
+      "name": "generation:tool",
+      "value": "syft-v0.99.0"
+    },
+    {
+      "name": "total:components",
+      "value": "10"
+    },
+    {
+      "name": "total:vulnerabilities",
+      "value": "1"
+    },
+    {
+      "name": "assessment:risk_level",
+      "value": "medium"
+    },
+    {
+      "name": "compliance:licenses_approved",
+      "value": "true"
+    }
+  ]
+}

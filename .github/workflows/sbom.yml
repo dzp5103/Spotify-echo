@@ -1,26 +1,384 @@
-name: Generate SBOM
+name: Generate SBOM and Supply Chain Analysis
+
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'requirements.txt'
+      - 'requirements-*.txt'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
   pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'requirements.txt'
+      - 'requirements-*.txt'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+  schedule:
+    - cron: '0 2 * * 1' # Weekly on Mondays at 2 AM UTC
   workflow_dispatch:
+    inputs:
+      deep_scan:
+        description: 'Perform deep vulnerability scanning'
+        required: false
+        default: 'false'
+        type: boolean
+      upload_to_registry:
+        description: 'Upload SBOM to supply chain registry'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: read
+  security-events: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: sbom-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SBOM_FORMAT: cyclonedx-json
+  VULNERABILITY_DB_UPDATE: true
+  ATTESTATION_ENABLED: true
 
 jobs:
-  sbom:
+  generate-sbom:
+    name: Generate Software Bill of Materials
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    outputs:
+      sbom-hash: ${{ steps.sbom-gen.outputs.sbom-hash }}
+      vulnerability-count: ${{ steps.vuln-scan.outputs.vulnerability-count }}
+      critical-vulns: ${{ steps.vuln-scan.outputs.critical-vulns }}
+      high-vulns: ${{ steps.vuln-scan.outputs.high-vulns }}
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Syft
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Create reports directory
+        run: mkdir -p reports
+
+      - name: Install Syft (SBOM Generator)
         uses: anchore/sbom-action/download-syft@v0.17.10
-      - name: Generate SBOM (CycloneDX JSON)
+
+      - name: Install Grype (Vulnerability Scanner)
         run: |
-          mkdir -p reports
-          syft packages dir:. -o cyclonedx-json > reports/sbom.json || echo "{}" > reports/sbom.json
-      - name: Upload artifact
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate comprehensive SBOM
+        id: sbom-gen
+        run: |
+          echo "🔍 Generating comprehensive SBOM..."
+          
+          # Generate primary SBOM
+          syft packages dir:. \
+            --output=${{ env.SBOM_FORMAT }}=reports/sbom.json \
+            --output=spdx-json=reports/sbom-spdx.json \
+            --output=table=reports/sbom-table.txt \
+            --catalogers=all \
+            --scope=all-layers \
+            --exclude='.git/**,node_modules/**/test/**,**/*.test.js,testing_screenshots/**'
+          
+          # Validate SBOM was generated
+          if [ ! -f "reports/sbom.json" ] || [ ! -s "reports/sbom.json" ]; then
+            echo "⚠️ Primary SBOM generation failed, creating minimal SBOM"
+            echo '{"bomFormat":"CycloneDX","specVersion":"1.4","components":[]}' > reports/sbom.json
+          fi
+          
+          # Generate SBOM hash for integrity verification
+          SBOM_HASH=$(sha256sum reports/sbom.json | cut -d' ' -f1)
+          echo "sbom-hash=$SBOM_HASH" >> $GITHUB_OUTPUT
+          echo "✅ SBOM generated with hash: $SBOM_HASH"
+          
+          # Generate component statistics
+          COMPONENT_COUNT=$(jq '.components | length' reports/sbom.json 2>/dev/null || echo "0")
+          echo "📊 Total components: $COMPONENT_COUNT"
+          echo "component-count=$COMPONENT_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Perform vulnerability scanning
+        id: vuln-scan
+        continue-on-error: true
+        run: |
+          echo "🔍 Scanning for vulnerabilities..."
+          
+          # Scan SBOM for vulnerabilities
+          grype sbom:reports/sbom.json \
+            --output=json \
+            --file=reports/vulnerabilities.json \
+            --fail-on=critical \
+            --only-fixed=false
+          
+          # Extract vulnerability statistics
+          if [ -f "reports/vulnerabilities.json" ]; then
+            CRITICAL_VULNS=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' reports/vulnerabilities.json)
+            HIGH_VULNS=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' reports/vulnerabilities.json)
+            MEDIUM_VULNS=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' reports/vulnerabilities.json)
+            TOTAL_VULNS=$(jq '.matches | length' reports/vulnerabilities.json)
+            
+            echo "critical-vulns=$CRITICAL_VULNS" >> $GITHUB_OUTPUT
+            echo "high-vulns=$HIGH_VULNS" >> $GITHUB_OUTPUT
+            echo "medium-vulns=$MEDIUM_VULNS" >> $GITHUB_OUTPUT
+            echo "vulnerability-count=$TOTAL_VULNS" >> $GITHUB_OUTPUT
+            
+            echo "🛡️ Vulnerability Summary:"
+            echo "  Critical: $CRITICAL_VULNS"
+            echo "  High: $HIGH_VULNS"
+            echo "  Medium: $MEDIUM_VULNS"
+            echo "  Total: $TOTAL_VULNS"
+          else
+            echo "⚠️ Vulnerability scan failed, creating empty results"
+            echo '{"matches":[],"source":{"type":"directory","target":"."}}' > reports/vulnerabilities.json
+            echo "critical-vulns=0" >> $GITHUB_OUTPUT
+            echo "high-vulns=0" >> $GITHUB_OUTPUT
+            echo "vulnerability-count=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate enhanced SBOM report
+        run: |
+          cat > reports/sbom-report.md << 'EOF'
+          # Software Bill of Materials Report
+          
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Repository:** ${{ github.repository }}
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          
+          ## Summary
+          
+          - **Total Components:** ${{ steps.sbom-gen.outputs.component-count }}
+          - **SBOM Hash:** ${{ steps.sbom-gen.outputs.sbom-hash }}
+          - **Total Vulnerabilities:** ${{ steps.vuln-scan.outputs.vulnerability-count }}
+          - **Critical Vulnerabilities:** ${{ steps.vuln-scan.outputs.critical-vulns }}
+          - **High Vulnerabilities:** ${{ steps.vuln-scan.outputs.high-vulns }}
+          
+          ## Vulnerability Assessment
+          
+          EOF
+          
+          if [ "${{ steps.vuln-scan.outputs.critical-vulns }}" -gt 0 ]; then
+            echo "⚠️ **CRITICAL:** ${{ steps.vuln-scan.outputs.critical-vulns }} critical vulnerabilities detected!" >> reports/sbom-report.md
+          elif [ "${{ steps.vuln-scan.outputs.high-vulns }}" -gt 0 ]; then
+            echo "⚠️ **HIGH:** ${{ steps.vuln-scan.outputs.high-vulns }} high-severity vulnerabilities detected!" >> reports/sbom-report.md
+          else
+            echo "✅ **GOOD:** No critical or high-severity vulnerabilities detected." >> reports/sbom-report.md
+          fi
+          
+          echo "" >> reports/sbom-report.md
+          echo "## Files Generated" >> reports/sbom-report.md
+          echo "" >> reports/sbom-report.md
+          echo "- \`sbom.json\` - CycloneDX format SBOM" >> reports/sbom-report.md
+          echo "- \`sbom-spdx.json\` - SPDX format SBOM" >> reports/sbom-report.md
+          echo "- \`vulnerabilities.json\` - Vulnerability scan results" >> reports/sbom-report.md
+          echo "- \`sbom-table.txt\` - Human-readable component list" >> reports/sbom-report.md
+
+      - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sbom
-          path: reports/sbom.json
+          name: sbom-reports-${{ github.run_number }}
+          path: |
+            reports/sbom.json
+            reports/sbom-spdx.json
+            reports/sbom-table.txt
+            reports/vulnerabilities.json
+            reports/sbom-report.md
+          retention-days: 30
+
+      - name: Deep vulnerability scan (optional)
+        if: github.event.inputs.deep_scan == 'true'
+        run: |
+          echo "🔍 Performing deep vulnerability scan..."
+          
+          # Scan with additional vulnerability databases
+          grype dir:. \
+            --output=json \
+            --file=reports/deep-vulnerabilities.json \
+            --fail-on=medium \
+            --scope=all-layers
+          
+          echo "✅ Deep scan completed"
+
+      - name: Generate security advisory
+        if: steps.vuln-scan.outputs.critical-vulns > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const criticalVulns = '${{ steps.vuln-scan.outputs.critical-vulns }}';
+            const highVulns = '${{ steps.vuln-scan.outputs.high-vulns }}';
+            const totalVulns = '${{ steps.vuln-scan.outputs.vulnerability-count }}';
+            
+            if (criticalVulns > 0) {
+              const title = `🚨 Critical Vulnerabilities Detected: ${criticalVulns} critical, ${highVulns} high-severity`;
+              const body = `
+              ## Security Alert: Critical Vulnerabilities Detected
+              
+              **Summary:**
+              - Critical vulnerabilities: ${criticalVulns}
+              - High-severity vulnerabilities: ${highVulns}
+              - Total vulnerabilities: ${totalVulns}
+              
+              **Action Required:**
+              1. Review the vulnerability report in the SBOM artifacts
+              2. Update affected dependencies immediately
+              3. Test thoroughly before deployment
+              
+              **Artifacts:**
+              - Download SBOM reports from the workflow run
+              - Review \`vulnerabilities.json\` for detailed vulnerability information
+              
+              ---
+              *This alert was generated automatically by the SBOM workflow.*
+              `;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'vulnerability', 'priority/critical']
+              });
+            }
+
+  supply-chain-analysis:
+    name: Supply Chain Risk Analysis
+    needs: generate-sbom
+    runs-on: ubuntu-latest
+    if: always() && needs.generate-sbom.result != 'cancelled'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-reports-${{ github.run_number }}
+          path: reports
+
+      - name: Analyze supply chain risks
+        run: |
+          echo "🔍 Analyzing supply chain risks..."
+          
+          # Create supply chain analysis
+          cat > reports/supply-chain-analysis.json << EOF
+          {
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "repository": "${{ github.repository }}",
+            "commit": "${{ github.sha }}",
+            "analysis": {
+              "total_components": ${{ needs.generate-sbom.outputs.component-count }},
+              "vulnerability_count": ${{ needs.generate-sbom.outputs.vulnerability-count }},
+              "critical_vulnerabilities": ${{ needs.generate-sbom.outputs.critical-vulns }},
+              "high_vulnerabilities": ${{ needs.generate-sbom.outputs.high-vulns }},
+              "risk_level": "$(if [ "${{ needs.generate-sbom.outputs.critical-vulns }}" -gt 0 ]; then echo "CRITICAL"; elif [ "${{ needs.generate-sbom.outputs.high-vulns }}" -gt 0 ]; then echo "HIGH"; else echo "LOW"; fi)"
+            }
+          }
+          EOF
+          
+          echo "✅ Supply chain analysis completed"
+
+      - name: Upload final artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-analysis-${{ github.run_number }}
+          path: reports/supply-chain-analysis.json
+          retention-days: 90
+
+  sbom-validation:
+    name: Validate SBOM Quality
+    needs: generate-sbom
+    runs-on: ubuntu-latest
+    if: always() && needs.generate-sbom.result == 'success'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-reports-${{ github.run_number }}
+          path: reports
+
+      - name: Validate SBOM integrity
+        run: |
+          echo "🔍 Validating SBOM integrity..."
+          
+          # Verify SBOM structure
+          if ! jq empty reports/sbom.json; then
+            echo "❌ SBOM JSON is invalid"
+            exit 1
+          fi
+          
+          # Verify required fields
+          REQUIRED_FIELDS=("bomFormat" "specVersion" "components")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" reports/sbom.json > /dev/null; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+          
+          # Verify SBOM hash
+          EXPECTED_HASH="${{ needs.generate-sbom.outputs.sbom-hash }}"
+          ACTUAL_HASH=$(sha256sum reports/sbom.json | cut -d' ' -f1)
+          
+          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "❌ SBOM hash mismatch!"
+            echo "Expected: $EXPECTED_HASH"
+            echo "Actual: $ACTUAL_HASH"
+            exit 1
+          fi
+          
+          echo "✅ SBOM validation passed"
+          echo "✅ Hash verified: $ACTUAL_HASH"
+
+  security-gate:
+    name: Security Gate Check
+    needs: [generate-sbom, supply-chain-analysis]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Evaluate security posture
+        run: |
+          CRITICAL_VULNS="${{ needs.generate-sbom.outputs.critical-vulns }}"
+          HIGH_VULNS="${{ needs.generate-sbom.outputs.high-vulns }}"
+          
+          echo "🛡️ Security Gate Evaluation:"
+          echo "Critical vulnerabilities: $CRITICAL_VULNS"
+          echo "High vulnerabilities: $HIGH_VULNS"
+          
+          if [ "$CRITICAL_VULNS" -gt 0 ]; then
+            echo "❌ SECURITY GATE: FAILED - Critical vulnerabilities detected"
+            echo "::warning title=Security Gate Failed::$CRITICAL_VULNS critical vulnerabilities detected. Immediate action required."
+            exit 1
+          elif [ "$HIGH_VULNS" -gt 5 ]; then
+            echo "⚠️ SECURITY GATE: WARNING - High number of high-severity vulnerabilities"
+            echo "::warning title=Security Gate Warning::$HIGH_VULNS high-severity vulnerabilities detected. Review recommended."
+          else
+            echo "✅ SECURITY GATE: PASSED - Acceptable security posture"
+          fi

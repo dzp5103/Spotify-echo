@@ -13,11 +13,17 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
       globals: {
         ...globals.node,
         ...globals.browser,
         ...globals.es2021,
         ...globals.jest,
+        React: 'readonly',
       },
     },
     rules: {
@@ -36,7 +42,7 @@ module.exports = [
   
   // Configuration for React files
   {
-    files: ['src/**/*.jsx', 'src/**/*.tsx'],
+    files: ['src/**/*.jsx', 'src/**/*.tsx', 'src/**/*.js'],
     languageOptions: {
       parserOptions: {
         ecmaFeatures: {

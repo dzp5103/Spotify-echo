@@ -1,4 +1,6 @@
-> **📋 Last Updated**: January 8, 2025 | **📦 Version**: 2.3.0 | **🚀 Status**: Enhanced with Community MCP Integration
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
+
+> **📋 Last Updated**: August 9, 2025 | **📦 Version**: 2.3.0 | **🚀 Status**: Enhanced with Community MCP Integration
 
 # 🎵 EchoTune AI - Next-Generation Music Discovery Platform
 
