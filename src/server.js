@@ -64,7 +64,7 @@ const {
 
 // Import enhanced systems
 const healthRoutes = require('./api/health/health-routes');
-const cacheManager = require('./api/cache/redis-cache-manager');
+const cacheManager = require('./api/cache/cache-manager');
 const SecurityManager = require('./api/security/security-manager');
 const performanceMonitor = require('./api/monitoring/performance-monitor');
 

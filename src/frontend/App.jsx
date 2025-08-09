@@ -12,6 +12,7 @@ import InsightsDashboard from './components/InsightsDashboard'; // New insights 
 import SongsPage from './components/SongsPage'; // New songs analysis page
 import MobileResponsiveManager from './components/MobileResponsiveManager';
 import EnhancedConfigPanel from './components/EnhancedConfigPanel';
+import GitHubInfo from '../components/GitHubInfo'; // GitHub repository information component
 // import { AuthProvider, useAuth } from './contexts/AuthContext';
 // import { LLMProvider } from './contexts/LLMContext';
 // import { DatabaseProvider } from './contexts/DatabaseContext';
@@ -376,10 +377,12 @@ function SettingsTabManager() {
       >
         <Tab label="⚙️ General" value="general" />
         <Tab label="📱 Mobile & Responsive" value="mobile" />
+        <Tab label="🐙 GitHub" value="github" />
       </Tabs>
 
       {settingsTab === 'general' && <EnhancedConfigPanel />}
       {settingsTab === 'mobile' && <MobileResponsiveManager />}
+      {settingsTab === 'github' && <GitHubInfo />}
     </Box>
   );
 }
