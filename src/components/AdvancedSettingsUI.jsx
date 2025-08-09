@@ -5,18 +5,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-// Note: This is a placeholder component - imports cleaned up to remove lint warnings
-// Uncomment and use specific imports when implementing the actual UI
-/*
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Tabs,
-  Tab,
-  TextField,
-  Button,
+  Box as _Box,
+  Card as _Card,
+  CardContent as _CardContent,
+  Typography as _Typography,
+  Tabs as _Tabs,
+  Tab as _Tab,
+  TextField as _TextField,
+  Button as _Button,
   Select,
   MenuItem,
   FormControl,
@@ -49,7 +46,6 @@ import {
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
 } from '@mui/icons-material';
-*/
 
 const AdvancedSettingsUI = () => {
   const [activeTab, setActiveTab] = useState(0);

@@ -1,7 +1,38 @@
 [
-  { "title": "Expand MCP integration tests for Spotify MCP server", "priority": "high" },
-  { "title": "Adopt response-formatter across existing endpoints", "priority": "medium" },
-  { "title": "Add caching guardrails and TTLs to recommendation endpoints", "priority": "medium" },
-  { "title": "Enhance CI to run unit tests with Jest and coverage thresholds", "priority": "medium" },
-  { "title": "Document Browser automation MCP optional setup in MCP README", "priority": "low" }
+  {
+    "title": "Expand MCP integration tests for Spotify MCP server",
+    "priority": "high"
+  },
+  {
+    "title": "Adopt response-formatter across existing endpoints",
+    "priority": "medium"
+  },
+  {
+    "title": "Add caching guardrails and TTLs to recommendation endpoints",
+    "priority": "medium"
+  },
+  {
+    "title": "Enhance CI to run unit tests with Jest and coverage thresholds",
+    "priority": "medium"
+  },
+  {
+    "title": "Document Browser automation MCP optional setup in MCP README",
+    "priority": "low"
+  },
+  {
+    "title": "Feature Development: test-feature",
+    "priority": "medium",
+    "category": "feature-development",
+    "workflow_id": "feature-development-1754744978237-imtmrzo3j",
+    "created_at": "2025-08-09T13:09:38.237Z",
+    "source": "api",
+    "parameters": {
+      "feature_name": "test-feature",
+      "priority": "medium",
+      "target_directory": "src",
+      "estimated_complexity": "medium",
+      "requires_testing": true,
+      "requires_documentation": true
+    }
+  }
 ]

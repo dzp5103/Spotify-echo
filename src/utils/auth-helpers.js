@@ -56,6 +56,11 @@ function createJWT(payload, secret, options = {}) {
     ...options
   };
   
+  // Ensure expiresIn is valid
+  if (typeof defaultOptions.expiresIn === 'number') {
+    defaultOptions.expiresIn = `${defaultOptions.expiresIn}s`;
+  }
+  
   return jwt.sign(payload, secret, defaultOptions);
 }
 

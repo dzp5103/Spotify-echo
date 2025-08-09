@@ -117,7 +117,7 @@ class MultiModelOrchestrator extends EventEmitter {
      * Process a coding agent request with optimal model selection
      */
     async processAgentRequest(request) {
-        const { task, content, priority: _priority = 'normal', requirements = {} } = request;
+        const { task, content, priority = 'normal', requirements = {} } = request;
         
         try {
             // Select optimal model
@@ -215,11 +215,11 @@ class MultiModelOrchestrator extends EventEmitter {
     /**
      * Execute model request (placeholder - integrate with actual providers)
      */
-    async executeModelRequest(modelId, _prompt) {
+    async executeModelRequest(modelId, prompt) {
         // This would integrate with actual model providers
         // For now, return a mock response indicating the model used
         
-        const _model = this.models.get(modelId);
+        const model = this.models.get(modelId);
         
         // Simulate processing time based on model type
         const processingTime = modelId.includes('turbo') ? 500 : 

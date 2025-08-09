@@ -45,7 +45,7 @@ const advancedSettingsRoutes = require('./api/advanced-settings'); // Advanced S
 const docsRoutes = require('./api/routes/docs'); // API documentation
 const adminRoutes = require('./api/routes/admin'); // MongoDB admin dashboard and tools
 const enhancedMCPRoutes = require('./api/routes/enhanced-mcp'); // Enhanced MCP and multimodel capabilities
-const spotifyMVPRoutes = require('./api/routes/spotify-mvp'); // MVP Spotify endpoints (issues #150, #151, #154)
+const workflowRoutes = require('../agent-workflow/workflow-api'); // Dynamic workflow management
 const {
   extractUser,
   ensureDatabase,
@@ -64,7 +64,7 @@ const {
 
 // Import enhanced systems
 const healthRoutes = require('./api/health/health-routes');
-const cacheManager = require('./api/cache/redis-cache-manager');
+const cacheManager = require('./api/cache/cache-manager');
 const SecurityManager = require('./api/security/security-manager');
 const performanceMonitor = require('./api/monitoring/performance-monitor');
 
@@ -802,7 +802,6 @@ app.use('/api/docs', docsRoutes); // API documentation - must come first
 app.use('/api/chat', chatRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/spotify', spotifyRoutes);
-app.use('/api/spotify-mvp', spotifyMVPRoutes); // MVP Spotify endpoints (issues #150, #151, #154)
 app.use('/api/providers', providersRoutes);
 app.use('/api/database', databaseRoutes);
 app.use('/api/playlists', playlistRoutes);
@@ -815,6 +814,7 @@ app.use('/api/feedback', feedbackRoutes); // New feedback system
 app.use('/api/music', musicDiscoveryRoutes); // Enhanced music discovery system
 app.use('/api/admin', adminRoutes); // MongoDB admin dashboard and tools
 app.use('/api/enhanced-mcp', enhancedMCPRoutes); // Enhanced MCP and multimodel capabilities
+app.use('/api/workflow', workflowRoutes); // Dynamic workflow management
 
 // Deployment API routes
 const deployRoutes = require('./api/routes/deploy');

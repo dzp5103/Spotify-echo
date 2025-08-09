@@ -341,7 +341,7 @@ router.get('/top/tracks', requireSpotifyAuth, async (req, res) => {
 router.get('/audio-features/:trackIds', requireSpotifyAuth, async (req, res) => {
   try {
     const { trackIds } = req.params;
-    const ids = trackIds.split(',').slice(0, SPOTIFY_MAX_AUDIO_FEATURE_TRACKS); // Limit to 100 tracks
+    const ids = trackIds.split(',').slice(0, 100); // Limit to 100 tracks
     
     const audioFeatures = await makeSpotifyRequest('/audio-features', req.auth.spotifyTokens.access_token, {
       params: {

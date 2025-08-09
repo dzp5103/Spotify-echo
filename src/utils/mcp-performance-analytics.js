@@ -457,7 +457,7 @@ class MCPPerformanceAnalytics {
         try {
             await this.initialize();
             const report = await this.generateMCPReport();
-            const _reportPath = await this.saveMCPReport(report);
+            const reportPath = await this.saveMCPReport(report);
             
             console.log('✅ MCP Analytics completed successfully');
             console.log(`📈 Health Score: ${report.sections.executive_summary.health_score}/100`);

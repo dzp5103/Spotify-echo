@@ -9,22 +9,38 @@ global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
 // Mock MongoDB before any imports
-jest.mock('mongodb', () => ({
-  MongoClient: jest.fn(() => ({
-    connect: jest.fn(),
-    db: jest.fn(() => ({
-      collection: jest.fn(() => ({
-        findOne: jest.fn(),
-        insertOne: jest.fn(),
-        updateOne: jest.fn(),
-        find: jest.fn(() => ({
-          toArray: jest.fn(() => [])
-        }))
-      }))
-    })),
-    close: jest.fn()
-  }))
-}));
+jest.mock('mongodb', () => {
+  const mockEventEmitter = {
+    on: jest.fn(),
+    emit: jest.fn(),
+    removeListener: jest.fn()
+  };
+  
+  return {
+    MongoClient: jest.fn().mockImplementation(() => ({
+      ...mockEventEmitter,
+      connect: jest.fn().mockResolvedValue(),
+      db: jest.fn(() => ({
+        collection: jest.fn(() => ({
+          findOne: jest.fn(),
+          insertOne: jest.fn(),
+          updateOne: jest.fn(),
+          find: jest.fn(() => ({
+            toArray: jest.fn(() => [])
+          })),
+          createIndex: jest.fn()
+        })),
+        command: jest.fn().mockResolvedValue({ ok: 1 }),
+        admin: jest.fn(() => ({
+          ping: jest.fn().mockResolvedValue({ ok: 1 })
+        })),
+        createCollection: jest.fn().mockResolvedValue(),
+        databaseName: 'test_db'
+      })),
+      close: jest.fn()
+    }))
+  };
+});
 
 // Import OpenAI shims for Node.js environment (conditionally)
 try {
